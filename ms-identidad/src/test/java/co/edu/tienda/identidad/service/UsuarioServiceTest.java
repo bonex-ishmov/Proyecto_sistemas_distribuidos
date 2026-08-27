@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -117,5 +118,27 @@ class UsuarioServiceTest {
 
         assertThrows(ReglaNegocioException.class, () -> usuarioService.eliminar(1L));
         verify(repositorio, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("La consulta por lote con lista vacía o nula no golpea la base de datos")
+    void loteVacio() {
+        assertTrue(usuarioService.buscarPorCedulas(List.of()).isEmpty());
+        assertTrue(usuarioService.buscarPorCedulas(null).isEmpty());
+        verify(repositorio, never()).findByCedulaUsuarioIn(any());
+    }
+
+    @Test
+    @DisplayName("La consulta por lote devuelve solo los usuarios que existen")
+    void loteDevuelveSoloExistentes() {
+        Usuario laura = new Usuario(1002L, "Laura Gómez", "laura@tienda.com",
+                "lgomez", "hash", true);
+        when(repositorio.findByCedulaUsuarioIn(List.of(1002L, 99999L)))
+                .thenReturn(List.of(laura));
+
+        List<Usuario> encontrados = usuarioService.buscarPorCedulas(List.of(1002L, 99999L));
+
+        assertEquals(1, encontrados.size());
+        assertEquals(1002L, encontrados.get(0).getCedulaUsuario());
     }
 }

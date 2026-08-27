@@ -76,6 +76,16 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- BD en memoria SOLO para el perfil de test (perfil "test").
+             Permite que MsCatalogoApplicationTests levante el contexto
+             sin MySQL. La app real sigue usando MySQL. setup-db.sql es un
+             script manual: Spring no lo ejecuta, asi que H2 no lo ve. -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

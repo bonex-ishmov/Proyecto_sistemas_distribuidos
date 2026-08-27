@@ -5,10 +5,12 @@
     <option name="originalFiles">
       <list>
         <option value="$PROJECT_DIR$/ms-identidad/pom.xml" />
+        <option value="$PROJECT_DIR$/ms-clientes/pom.xml" />
+        <option value="$PROJECT_DIR$/ms-catalogo/pom.xml" />
       </list>
     </option>
   </component>
-  <component name="ProjectRootManager" version="2">
+  <component name="ProjectRootManager" version="2" languageLevel="JDK_25" project-jdk-name="ms-25" project-jdk-type="JavaSDK">
     <output url="file://$PROJECT_DIR$/out" />
   </component>
 </project>

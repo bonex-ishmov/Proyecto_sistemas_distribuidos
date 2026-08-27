@@ -107,7 +107,13 @@ Estas decisiones ya fueron discutidas y aprobadas. Varias contradicen el PDF a p
 cuando el PDF diga otra cosa, gana lo de aquí:
 
 - Dinero: `DECIMAL` en BD y `BigDecimal` en Java. El PDF dice DOUBLE — no se usa.
-- IVA: `precio_venta` NO incluye IVA; el IVA se calcula sobre él.
+- IVA: `precio_venta` es la base gravable y NO incluye IVA; el IVA se calcula
+  sobre `precio_venta`. Razón: la pantalla de ventas del PDF define tres campos
+  separados (Total Venta, Total IVA, Total con IVA); si `precio_venta` ya
+  incluyera el IVA, "Total Venta" y "Total con IVA" serían el mismo valor y el
+  formulario no tendría sentido. La relación `precio_venta ≈ precio_compra × 1.19`
+  que aparece en `productos.csv` es un artefacto de datos de muestra generados
+  sin margen comercial, no una regla de negocio.
 - Venta: sin límite de productos en el backend. El "máximo 3 productos" del PDF es
   solo la maqueta; el frontend muestra 3 filas por defecto pero puede agregar más.
 - Contraseñas: hasheadas siempre. Ningún endpoint devuelve la contraseña ni el hash,
@@ -116,6 +122,17 @@ cuando el PDF diga otra cosa, gana lo de aquí:
   (`/clientes/guardar`, `/clientes/eliminar/{id}`).
 - Usuario inicial `admininicial` se desactiva automáticamente al crear el primer
   usuario real (columna `activo`).
+- Frontend: una sola aplicación en Angular + TypeScript que consume los servicios
+  REST. Los mockups del PDF son referencia visual del QUÉ, no del CÓMO. No se usa
+  JSP (ver "Documento de requisitos").
+- Roles: NO se implementan. El PDF usa las palabras "administrador" y "usuario" en
+  las historias, pero no define tabla de roles, ni gestión de roles, ni permisos
+  por módulo; la tabla `usuarios` que especifica solo tiene cédula, nombre, email,
+  usuario y contraseña. Implementar roles sería inventar un requisito.
+- Autenticación servicio-a-servicio: sin API Gateway. `ms-ventas` y `ms-reportes`
+  hacen login contra `ms-identidad` con un usuario de sistema propio y usan ese
+  JWT para llamar a los endpoints `/lote`, que siguen exigiendo JWT. El usuario de
+  sistema se excluye del listado de usuarios del módulo de reportes.
 - Carga CSV de productos: modo reemplazo total de la tabla, en una transacción.
 - Versiones: se usa Java y Spring Boot actuales. Las versiones del PDF (Java 11,
   Spring Boot 2.4.5) no obligan.
@@ -127,7 +144,9 @@ El PDF diseña UNA sola base de datos con FKs entre `ventas`, `clientes`, `usuar
 y `productos`. Esta arquitectura NO hace eso: un esquema por servicio, sin FKs entre
 esquemas. Consecuencia para `ms-ventas`: guarda `cedula_cliente` y `cedula_usuario`
 como valores sin FK, y valida su existencia llamando por HTTP a `ms-clientes` y
-`ms-identidad` (los endpoints `/lote` existen para eso).
+`ms-identidad` (los endpoints `/lote` existen para eso). Esas llamadas HTTP van
+autenticadas con el JWT del usuario de sistema (ver "Autenticación
+servicio-a-servicio").
 
 ## Cómo trabajar conmigo
 

@@ -1,0 +1,240 @@
+# Diagnóstico técnico — Tienda Genérica
+
+Fecha: 2026-08-27
+Alcance: monorepo `Proyecto_sistemas_distribuidos` (ms-identidad, ms-clientes, ms-catalogo)
+contrastado contra `docs/requisitos-tienda-generica.pdf` (Parte 1, 7 módulos).
+
+## 1. ARQUITECTURA ACTUAL
+
+Monorepo con 3 microservicios Spring Boot independientes, sin `pom.xml` padre. Cada
+uno con su wrapper Maven, su esquema MySQL y su puerto.
+
+| Módulo | Puerto | Esquema | Paquete raíz |
+|---|---|---|---|
+| ms-identidad | 8081 | db_identidad | co.edu.tienda.identidad |
+| ms-clientes | 8082 | db_clientes | co.edu.tienda.clientes |
+| ms-catalogo | 8083 | db_catalogo | co.edu.tienda.catalogo |
+
+- Stack: Spring Boot 4.1.0, Java 25, Spring Data JPA + Hibernate (ddl-auto=update),
+  Spring Security stateless, MySQL 8 (localhost:3306), JJWT 0.12.6, OpenCSV 5.9
+  (solo catálogo). JUnit 5 + Mockito.
+- Capas por módulo: Controller (/api/...) -> Service (@Transactional, reglas) ->
+  Repository (Spring Data). DTOs son records; mappers son clases utilitarias
+  estáticas; GlobalExceptionHandler (@RestControllerAdvice) centraliza los errores
+  en un ErrorResponse uniforme.
+- Autenticación: secreto HS256 compartido (mismo literal en los 3
+  application.properties). Solo ms-identidad emite tokens; los otros dos solo
+  verifican la firma con copias casi verbatim de JwtService + JwtAuthenticationFilter.
+  Sin roles, sin consulta a BD en la validación.
+- Sin FKs entre esquemas. Única FK real: Producto -> Proveedor
+  (fk_producto_proveedor) dentro de db_catalogo.
+- No hay: frontend, API gateway, service registry, docker-compose, CI,
+  documentación OpenAPI. README.md está vacío (solo el título). .mcp.json (config
+  del MCP de IntelliJ) está sin trackear.
+
+## 2. MICROSERVICIOS EXISTENTES
+
+ms-identidad — Login + gestión de usuarios.
+- POST /api/auth/login -> LoginResponse (token, tipo Bearer, cédula, usuario,
+  nombre, expiración).
+- GET/POST /api/usuarios, GET/PUT/DELETE /api/usuarios/{cedula},
+  PATCH /api/usuarios/{cedula}/estado.
+- DataInitializer siembra admininicial / admin123456 (cédula 1) al arrancar,
+  idempotente.
+- Regla A-4: al crear el primer usuario real, admininicial se marca activo=false
+  automáticamente. El login rechaza usuarios inactivos.
+- No permite eliminar el usuario inicial (solo desactivar).
+- Contraseñas con BCrypt; ningún endpoint devuelve password ni hash.
+
+ms-clientes — CRUD de clientes.
+- GET/POST /api/clientes, GET/PUT/DELETE /api/clientes/{cedula},
+  POST /api/clientes/lote (recibe lista de cédulas, devuelve los que existen;
+  pensado para ms-reportes).
+- Toda ruta exige JWT.
+
+ms-catalogo — Proveedores + productos + carga CSV.
+- GET/POST /api/proveedores, GET/PUT/DELETE /api/proveedores/{nit}. Borrado
+  bloqueado si el proveedor tiene productos.
+- GET /api/productos, GET /api/productos/{codigo}, POST /api/productos/lote,
+  POST /api/productos/carga (multipart, parte "archivo").
+- Carga CSV: valida extensión .csv + nº de columnas, autodetecta cabecera (1a celda
+  no numérica), valida todas las filas acumulando errores (hasta 25), verifica NITs
+  contra BD en una consulta, y si todo está bien reemplaza la tabla entera
+  (deleteAllInBatch + saveAll) dentro de una transacción. Mensajes de error
+  calcados del PDF.
+- setup-db.sql crea db_catalogo y siembra los 5 proveedores que referencia
+  productos.csv.
+
+Pendientes (mencionados en CLAUDE.md, no existen): ms-ventas, ms-reportes.
+
+## 3. BACKEND
+
+- Consistencia alta entre módulos: misma estructura de paquetes, mismo estilo de
+  excepciones, mismos nombres de columnas snake_case, dominio en español.
+- Mapa de errores: RecursoNoEncontradoException->404, ReglaNegocioException->409,
+  bean-validation->400, CredencialesInvalidasException->401 (solo identidad),
+  ArchivoInvalidoException->400 y DatosInvalidosException->422 (solo catálogo),
+  MaxUploadSizeExceededException->413 (catálogo).
+- Validación: DTOs *Request con @NotNull/@NotBlank/@Email/@Size/@Pattern/@Positive.
+  *UpdateRequest sin cédula/NIT (van en la URL, son PK). En usuarios, password
+  opcional en update (si viene vacío se conserva).
+- Transaccionalidad: correcta. Lecturas con readOnly=true; la carga CSV y el
+  reemplazo de catálogo en una sola transacción.
+- JWT: JwtService firma con subject=usuario, claims cedula y nombre, TTL 1h. El
+  filtro pone la cédula en auth.setDetails(...) pero ningún controlador la usa
+  todavía.
+- Tests: solo capa service, unitarios con Mockito, sin contexto Spring. Cobertura
+  razonable de reglas. No hay tests de controller, de seguridad, ni de integración.
+  Los @SpringBootTest por defecto (Ms*ApplicationTests) sí intentan levantar
+  contexto y conectar a MySQL.
+
+## 4. FRONTEND
+
+No existe. No hay ningún proyecto ni archivo de frontend en el repo (ni JSP, ni
+React/Vue/Angular, ni HTML/JS suelto). El PDF, en cambio:
+- Tiene una sección "Interfaz Gráfica" en cada uno de los 5 sprints (mockups).
+- El módulo 7 exige explícitamente que las consultas sean "por pantalla".
+- La Parte 4 describe un frontend JSP desplegado como .WAR en Tomcat — excluido por
+  decisión de CLAUDE.md.
+
+La capa de presentación está sin definir.
+
+## 5. BASE DE DATOS
+
+Tres esquemas independientes, tablas creadas por Hibernate al arrancar.
+
+db_identidad.usuarios — cedula_usuario (PK, BIGINT), nombre_usuario (100, NN),
+email_usuario (100, NN, UNIQUE), usuario (50, NN, UNIQUE), password (255, NN, hash
+BCrypt), activo (BOOLEAN, NN).
+
+db_clientes.clientes — cedula_cliente (PK), nombre_cliente (100, NN),
+direccion_cliente (150, NN), telefono_cliente (20, NN), email_cliente (100, NN, no
+UNIQUE).
+
+db_catalogo.proveedores — nitproveedor (PK, BIGINT), nombre_proveedor (100),
+direccion_proveedor (150), telefono_proveedor (20), ciudad_proveedor (60). Todos NN.
+
+db_catalogo.productos — codigo_producto (PK, BIGINT, no autogenerado),
+nombre_producto (50, NN), nitproveedor (FK -> proveedores, NN, EAGER), precio_compra
+DECIMAL(15,2), ivacompra DECIMAL(5,2) (porcentaje, no monto), precio_venta
+DECIMAL(15,2). Índice idx_producto_nitproveedor.
+
+Config MySQL: ms-identidad y ms-clientes traen username=root / password vacío;
+ms-catalogo trae el placeholder TU_PASSWORD_DE_MYSQL (no arranca sin editar). Setup
+de BD inconsistente entre módulos.
+
+Faltan: ventas y detalleVentas (módulo 6).
+
+## 6. FUNCIONALIDADES YA IMPLEMENTADAS
+
+- Login con validación usuario/contraseña, usuario inicial sembrado, emisión de
+  JWT, rechazo de inactivos y mensaje de error del PDF.
+- Usuarios: crear, consultar por cédula, listar, actualizar (con password
+  opcional), eliminar (protegiendo al inicial), cambiar estado. Duplicados de
+  cédula/usuario/email controlados.
+- Clientes: crear, consultar, listar, actualizar, eliminar + consulta por lote.
+- Proveedores: crear, consultar, listar, actualizar, eliminar (con bloqueo por
+  productos asociados).
+- Productos: carga masiva CSV con reemplazo total transaccional y validación
+  exhaustiva; listar; consultar por código; consulta por lote.
+- Seguridad transversal: todas las rutas salvo /api/auth/** exigen JWT válido;
+  firma compartida entre los 3 servicios.
+- Manejo de errores uniforme y pruebas unitarias de la capa de servicio en los 3
+  módulos.
+
+## 7. FUNCIONALIDADES FALTANTES (contra los 7 módulos de la Parte 1)
+
+| # | Módulo (PDF) | Estado | Detalle |
+|---|---|---|---|
+| 1 | Login | Completo (backend) | Falta la pantalla de login. |
+| 2 | Gestión de usuarios | Completo (backend) | CRUD + estado listos. Falta UI. |
+| 3 | Gestión de clientes | Completo (backend) | CRUD + lote listos. Falta UI. |
+| 4 | Gestión de proveedores | Completo (backend) | CRUD listo. Falta UI. |
+| 5 | Gestión de productos | Completo (backend) | Carga CSV + consultas. El PDF solo exige carga por archivo. Falta UI. |
+| 6 | Gestión de ventas | No existe | No hay ms-ventas. Falta: tablas ventas + detalleVentas, consecutivo, búsqueda de cliente por cédula, agregado de productos por código, cálculo por producto, total IVA, total con IVA, validación cantidad > 0, persistencia cabecera + detalle, mensaje de confirmación. Requiere validar cédulas contra ms-clientes y ms-identidad por HTTP. |
+| 7 | Consultas y reportes | Parcial | a) Listado de usuarios -> GET /api/usuarios. b) Listado de clientes -> GET /api/clientes. c) Total de ventas por cliente -> imposible hoy (no hay ventas). No existe ms-reportes ni la presentación "por pantalla". |
+
+Además falta, a nivel de sistema:
+- Frontend completo (todos los sprints tienen "Interfaz Gráfica"; módulo 7 exige
+  "por pantalla").
+- Endpoint POST /api/usuarios/lote en ms-identidad (sí existen los de clientes y
+  productos).
+- Mecanismo de autenticación servicio-a-servicio para que ms-ventas/ms-reportes
+  llamen a los /lote.
+- Documentación de API (OpenAPI/Swagger), docker-compose para MySQL, README útil,
+  CI.
+
+## 8. PROBLEMAS O RIESGOS DETECTADOS
+
+Inconsistencias entidades Java <-> documento
+
+1. precio_venta / IVA — contradicción con los datos de muestra. CLAUDE.md decide
+   que precio_venta NO incluye IVA y que el IVA se calcula sobre él. Pero en
+   productos.csv y en la tabla del PDF, precio_venta ~= precio_compra * (1 +
+   ivacompra/100). Hay que resolver esto antes de ms-ventas porque define la
+   fórmula del total con IVA.
+2. Dinero como DECIMAL/BigDecimal en vez de DOUBLE (PDF). Decisión aprobada; se
+   registra como desviación deliberada.
+3. ivacompra como porcentaje en columna DECIMAL(5,2) validada 0-100. El PDF lo tipa
+   DOUBLE sin aclarar si es tasa o monto; la implementación asume tasa.
+4. usuarios.activo es una columna que el PDF no menciona (viene de la decisión
+   A-4). No es un problema pero un revisor la verá "de más".
+5. clientes.email_cliente no es único ni se valida contra duplicados al crear (solo
+   la cédula). El PDF no exige unicidad -> correcto, pero es asimétrico respecto a
+   usuarios.
+6. Nombres de tabla del módulo de ventas: el PDF pide detalleVentas (camelCase).
+   Al crearlo hay que decidir el nombre físico y anotarlo.
+
+Riesgos técnicos / de configuración
+
+7. Secreto JWT hardcodeado y versionado en los 3 application.properties (mismo
+   literal). Debería salir a variable de entorno / archivo no versionado.
+8. JwtService + JwtAuthenticationFilter duplicados verbatim en 3 (pronto 5)
+   módulos. Riesgo de divergencia.
+9. Setup local inconsistente: ms-catalogo no arranca sin editar el placeholder de
+   password; los otros usan password vacío.
+10. Los @SpringBootTest (Ms*ApplicationTests) requieren MySQL levantado. ./mvnw
+    clean package corre tests y esos context-load tests fallarán sin BD.
+11. Sin roles. Cualquier usuario autenticado puede crear/borrar usuarios o cargar
+    el catálogo. Puede ser decisión consciente pero no está registrada.
+12. admininicial tiene cédula 1; si un usuario real llegara con cédula 1 habría
+    colisión de PK (improbable).
+13. Validación CSV por extensión, no por contenido. Se acepta cualquier archivo
+    llamado .csv.
+14. README.md vacío y sin instrucciones de arranque fuera de CLAUDE.md.
+
+## 9. PROPUESTA DE ORDEN DE DESARROLLO
+
+1. Resolver la ambigüedad IVA / precio_venta (sección 8, punto 1) y registrarla en
+   "Decisiones ya tomadas". Bloqueante para ventas y reportes.
+2. ms-identidad: agregar POST /api/usuarios/lote. Prerequisito de ms-ventas y
+   ms-reportes.
+3. Definir la autenticación servicio-a-servicio (cómo obtienen token
+   ms-ventas/ms-reportes para llamar a los /lote).
+4. ms-ventas (módulo 6, puerto sugerido 8084, esquema db_ventas): entidades Venta +
+   DetalleVenta, consecutivo, cálculo de totales e IVA, validación de cédulas por
+   HTTP, endpoints REST estándar, pruebas de servicio.
+5. ms-reportes (módulo 7, puerto 8085): agrega las 3 consultas.
+6. Frontend que consuma los 5 servicios: login y los 7 módulos, incluidas las
+   consultas "por pantalla".
+7. Transversal / cierre: externalizar el secreto JWT, docker-compose de MySQL,
+   OpenAPI en cada servicio, README de arranque, evaluar librería compartida para
+   la lógica JWT.
+
+## 10. PRÓXIMO PASO
+
+1. Resolver las dos decisiones bloqueantes (semántica IVA; auth servicio-a-servicio).
+2. Plan detallado de ms-ventas + el añadido de POST /api/usuarios/lote en
+   ms-identidad.
+3. Aprobación del plan antes de implementar la Fase 1 (ms-ventas).
+
+---
+
+Actualización 2026-08-27: los puntos abiertos de las secciones 8-10 quedaron
+resueltos tras la revisión de este diagnóstico. La semántica IVA / precio_venta se
+mantiene (precio_venta es base gravable, el IVA se calcula sobre ella); el frontend
+será Angular + TypeScript; no se implementan roles; la autenticación
+servicio-a-servicio se hace con un usuario de sistema que hace login contra
+ms-identidad, sin API Gateway. La redacción vigente de cada decisión, con su
+razonamiento, está en CLAUDE.md ("Decisiones ya tomadas"). Este documento se
+conserva como foto del estado inicial del repositorio.

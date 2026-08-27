@@ -66,4 +66,19 @@ public class UsuarioController {
         return ResponseEntity.ok(
                 UsuarioMapper.aResponse(usuarioService.cambiarEstado(cedula, request.activo())));
     }
+
+    /**
+     * Endpoint de uso INTERNO entre microservicios.
+     * ms-ventas envía una lista de cédulas y recibe los datos de una sola vez,
+     * en lugar de hacer una petición HTTP por cada usuario. La respuesta incluye
+     * el campo 'activo' para que ms-ventas pueda rechazar una venta registrada
+     * con la cédula de un usuario desactivado.
+     */
+    @PostMapping("/lote")
+    public ResponseEntity<List<UsuarioResponse>> consultarLote(
+            @RequestBody List<Long> cedulas) {
+
+        return ResponseEntity.ok(
+                UsuarioMapper.aResponse(usuarioService.buscarPorCedulas(cedulas)));
+    }
 }

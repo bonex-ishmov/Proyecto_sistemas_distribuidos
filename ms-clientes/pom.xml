@@ -79,6 +79,15 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+
+		<!-- BD en memoria SOLO para el perfil de test (perfil "test").
+		     Permite que MsClientesApplicationTests levante el contexto
+		     sin MySQL. La app real sigue usando MySQL. -->
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>

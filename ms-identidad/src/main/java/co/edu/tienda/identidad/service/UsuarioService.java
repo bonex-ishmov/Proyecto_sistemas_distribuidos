@@ -43,6 +43,15 @@ public class UsuarioService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("Usuario Inexistente"));
     }
 
+    /** Consulta por lote. Devuelve solo los que existen, sin lanzar error. */
+    @Transactional(readOnly = true)
+    public List<Usuario> buscarPorCedulas(List<Long> cedulas) {
+        if (cedulas == null || cedulas.isEmpty()) {
+            return List.of();
+        }
+        return usuarioRepository.findByCedulaUsuarioIn(cedulas);
+    }
+
     @Transactional
     public Usuario crear(UsuarioRequest request) {
 
