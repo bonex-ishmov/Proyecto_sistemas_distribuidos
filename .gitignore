@@ -1,0 +1,4 @@
+# Configuracion local con credenciales reales (Railway) — NUNCA versionar.
+# Se versiona solo la plantilla application-local.properties.example
+**/src/main/resources/application-local.properties
+!**/src/main/resources/application-local.properties.example

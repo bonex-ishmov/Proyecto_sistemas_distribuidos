@@ -1,0 +1,14 @@
+# Plantilla. Copiá este archivo a  application-local.properties  (mismo directorio,
+# sin el sufijo .example) y completá los cuatro valores.
+# application-local.properties está en el .gitignore de la raíz: nunca se versiona.
+# application.properties lo importa con spring.config.import, así que se lee solo
+# (no hace falta activar ningún perfil). Sin este archivo el servicio NO arranca.
+#
+# useSSL=true es OBLIGATORIO: la conexión sale a un servidor remoto por internet
+# abierto; sin SSL la contraseña y los datos viajan en texto plano.
+# app.jwt.secret DEBE ser idéntico en los tres módulos.
+
+spring.datasource.url=jdbc:mysql://altaria.proxy.rlwy.net:40105/db_catalogo?useSSL=true&serverTimezone=UTC&allowPublicKeyRetrieval=true
+spring.datasource.username=root
+spring.datasource.password=PON_AQUI_LA_CLAVE
+app.jwt.secret=PON_AQUI_EL_SECRETO_DE_64_CARACTERES

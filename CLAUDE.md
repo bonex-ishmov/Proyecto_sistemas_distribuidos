@@ -34,13 +34,18 @@ and do **not** load a Spring context, so they run fast and need no database.
 
 ## Local setup
 
-- MySQL must be running on `localhost:3306`. Each service owns its schema and creates tables
-  via Hibernate `ddl-auto=update` on first start.
-- Set `spring.datasource.password` in each module's `src/main/resources/application.properties`.
-  `ms-catalogo` ships the placeholder `TU_PASSWORD_DE_MYSQL`; the others ship an empty password.
-- `ms-catalogo/setup-db.sql` creates `db_catalogo` and seeds the 5 suppliers that the sample
-  `productos.csv` references — run it (or POST the suppliers) before loading products, or the
-  load fails with "el proveedor no existe".
+- The database is a **shared remote MySQL 9.4 on Railway** (`altaria.proxy.rlwy.net:40105`),
+  used by the whole team. Services run with `ddl-auto=validate` and never create or alter tables.
+- The schema is versioned: run `db/schema.sql` (creates the 3 schemas + all tables), then
+  `db/seed.sql` (seeds the 5 suppliers referenced by `ms-catalogo/productos.csv`).
+- Each module reads `spring.datasource.*` and `app.jwt.secret` from a **git-ignored**
+  `src/main/resources/application-local.properties` (copy it from the committed
+  `application-local.properties.example`, drop the `.example` suffix, fill in real values).
+  `application.properties` pulls it in via `spring.config.import=optional:classpath:application-local.properties`
+  — no profile to activate; the service will not start if the file is missing (tests use H2 instead).
+  The datasource URL must use `useSSL=true`; `app.jwt.secret` must be byte-identical across the three modules.
+- Shared-DB caveat: `POST /api/productos/carga` wipes the whole `productos` table — never run it
+  while a teammate is working.
 - `ms-identidad` seeds an initial admin (`admininicial` / `admin123456`) via `DataInitializer`
   on startup. It is **auto-deactivated** the moment the first real user is created.
 
