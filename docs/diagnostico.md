@@ -238,3 +238,23 @@ servicio-a-servicio se hace con un usuario de sistema que hace login contra
 ms-identidad, sin API Gateway. La redacción vigente de cada decisión, con su
 razonamiento, está en CLAUDE.md ("Decisiones ya tomadas"). Este documento se
 conserva como foto del estado inicial del repositorio.
+
+---
+
+Actualización 2026-08-30 (Incremento 1 de ms-ventas):
+
+- Deuda técnica JWT: con ms-ventas, la lógica de validación de token
+  (`JwtService` de solo verificación + `JwtAuthenticationFilter` +
+  `JwtAuthenticationEntryPoint` + `SecurityConfig`) queda COPIADA VERBATIM en 4
+  módulos (ms-identidad la tiene además con el método de firma). Con ms-reportes
+  serán 5. Sigue siendo decisión consciente (evita montar una librería compartida
+  en un proyecto académico), pero el riesgo de divergencia crece: cualquier
+  cambio en la auth hay que replicarlo N veces. Antes de sumar la quinta copia
+  (ms-reportes), evaluar extraer un módulo Maven común `tienda-seguridad-jwt`.
+
+- Pendiente de limpiar (arrastrado, no introducido por ms-ventas): los
+  `application-local.properties.example` de ms-clientes y ms-catalogo traen la
+  contraseña real de Railway y el secreto JWT en texto literal, y esos archivos
+  SÍ se versionan. El de ms-ventas se creó ya con placeholders
+  (`PON_AQUI_LA_CLAVE`, `PON_AQUI_EL_SECRETO`). Hay que reemplazar los literales
+  por placeholders en los otros dos módulos y rotar esas credenciales.
