@@ -10,5 +10,5 @@
 
 spring.datasource.url=jdbc:mysql://altaria.proxy.rlwy.net:40105/db_clientes?useSSL=true&serverTimezone=UTC&allowPublicKeyRetrieval=true
 spring.datasource.username=root
-spring.datasource.password=PON_AQUI_LA_CLAVE
-app.jwt.secret=PON_AQUI_EL_SECRETO_DE_64_CARACTERES
+spring.datasource.password=pkSRaOvlsOVgkpVBUEWfjIpawTlMNTpx
+app.jwt.secret=TiendaGenerica2026ClaveJwtCompartidaEntreLosTresMicroservicios
