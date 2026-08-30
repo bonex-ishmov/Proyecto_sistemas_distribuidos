@@ -7,6 +7,7 @@ co\edu\tienda\ventas\mapper\VentaMapper.class
 co\edu\tienda\ventas\config\SecurityConfig.class
 co\edu\tienda\ventas\security\JwtAuthenticationEntryPoint.class
 co\edu\tienda\ventas\entity\DetalleVenta.class
+co\edu\tienda\ventas\dto\TotalPorClienteResponse.class
 co\edu\tienda\ventas\exception\ReglaNegocioException.class
 co\edu\tienda\ventas\exception\RecursoNoEncontradoException.class
 co\edu\tienda\ventas\gateway\ProductoInfo.class

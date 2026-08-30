@@ -2,6 +2,7 @@ package co.edu.tienda.ventas.service;
 
 import co.edu.tienda.ventas.dto.LineaVentaRequest;
 import co.edu.tienda.ventas.dto.RegistrarVentaRequest;
+import co.edu.tienda.ventas.dto.TotalPorClienteResponse;
 import co.edu.tienda.ventas.entity.DetalleVenta;
 import co.edu.tienda.ventas.entity.Venta;
 import co.edu.tienda.ventas.exception.RecursoNoEncontradoException;
@@ -121,6 +122,22 @@ public class VentaService {
                 guardada.getCedulaUsuario(), guardada.getDetalles().size(),
                 guardada.getTotalConIva());
         return guardada;
+    }
+
+    /** GET /api/ventas/{codigo}. 404 si el consecutivo no existe. */
+    @Transactional(readOnly = true)
+    public Venta buscarPorCodigo(Long codigo) {
+        return ventaRepository.findById(codigo)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Venta Inexistente"));
+    }
+
+    /**
+     * GET /api/ventas/total-por-cliente. Una fila por cliente con ventas,
+     * con la suma de total_con_iva. Lista vacia si aun no hay ventas.
+     */
+    @Transactional(readOnly = true)
+    public List<TotalPorClienteResponse> totalPorCliente() {
+        return ventaRepository.totalConIvaPorCliente();
     }
 
     /**

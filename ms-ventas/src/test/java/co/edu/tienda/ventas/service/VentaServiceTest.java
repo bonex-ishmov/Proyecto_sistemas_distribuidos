@@ -2,6 +2,7 @@ package co.edu.tienda.ventas.service;
 
 import co.edu.tienda.ventas.dto.LineaVentaRequest;
 import co.edu.tienda.ventas.dto.RegistrarVentaRequest;
+import co.edu.tienda.ventas.dto.TotalPorClienteResponse;
 import co.edu.tienda.ventas.entity.DetalleVenta;
 import co.edu.tienda.ventas.entity.Venta;
 import co.edu.tienda.ventas.exception.RecursoNoEncontradoException;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -191,5 +193,37 @@ class VentaServiceTest {
         assertImporte("4000.00", venta.getTotalVenta());
         assertImporte("760.00", venta.getValorIva());
         assertImporte("4760.00", venta.getTotalConIva());
+    }
+
+    // ---------- consultas (Incremento 3) ----------
+
+    @Test
+    @DisplayName("buscarPorCodigo devuelve la venta cuando el consecutivo existe")
+    void buscarPorCodigoExistente() {
+        Venta venta = new Venta();
+        venta.setCodigoVenta(7L);
+        when(ventaRepository.findById(7L)).thenReturn(Optional.of(venta));
+
+        assertSame(venta, ventaService.buscarPorCodigo(7L));
+    }
+
+    @Test
+    @DisplayName("buscarPorCodigo lanza 404 cuando el consecutivo no existe")
+    void buscarPorCodigoInexistente() {
+        when(ventaRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThrows(RecursoNoEncontradoException.class,
+                () -> ventaService.buscarPorCodigo(999L));
+    }
+
+    @Test
+    @DisplayName("totalPorCliente devuelve tal cual lo que agrega el repositorio")
+    void totalPorClienteDelegaEnRepositorio() {
+        List<TotalPorClienteResponse> filas = List.of(
+                new TotalPorClienteResponse(222L, new BigDecimal("15470.00")),
+                new TotalPorClienteResponse(333L, new BigDecimal("4760.00")));
+        when(ventaRepository.totalConIvaPorCliente()).thenReturn(filas);
+
+        assertEquals(filas, ventaService.totalPorCliente());
     }
 }
