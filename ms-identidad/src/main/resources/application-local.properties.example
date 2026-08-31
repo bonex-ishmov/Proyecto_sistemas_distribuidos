@@ -11,3 +11,11 @@ spring.datasource.url=jdbc:mysql://altaria.proxy.rlwy.net:40105/db_identidad?use
 spring.datasource.username=root
 spring.datasource.password=PON_AQUI_LA_CLAVE
 app.jwt.secret=PON_AQUI_EL_SECRETO_DE_64_CARACTERES
+
+# ---------- Usuario de sistema (autenticación servicio-a-servicio) ----------
+# UsuarioSistemaInitializer siembra este usuario (cédula 2) por inserción directa.
+# Estos dos valores DEBEN coincidir, carácter por carácter, con
+# ms.identidad.usuario-sistema y ms.identidad.password-sistema del
+# application-local.properties de ms-ventas Y de ms-reportes (comparten usuario).
+app.usuario-sistema.usuario=PON_AQUI_EL_USUARIO_DE_SISTEMA
+app.usuario-sistema.password=PON_AQUI_LA_CLAVE_DEL_USUARIO_DE_SISTEMA

@@ -1,3 +1,4 @@
+C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\config\HttpClientConfig.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\config\SecurityConfig.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\controller\VentaController.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\dto\LineaVentaRequest.java
@@ -12,9 +13,11 @@ C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\jav
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\exception\GlobalExceptionHandler.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\exception\RecursoNoEncontradoException.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\exception\ReglaNegocioException.java
+C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\gateway\AutenticadorServicio.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\gateway\CatalogoGateway.java
+C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\gateway\CatalogoHttpAdapter.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\gateway\ClientesGateway.java
-C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\gateway\DependenciasPendientes.java
+C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\gateway\ClientesHttpAdapter.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\gateway\ProductoInfo.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\mapper\VentaMapper.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\MsVentasApplication.java

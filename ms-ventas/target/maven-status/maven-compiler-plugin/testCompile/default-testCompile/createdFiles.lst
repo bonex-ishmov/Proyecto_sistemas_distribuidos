@@ -1,2 +1,4 @@
 co\edu\tienda\ventas\service\VentaServiceTest.class
 co\edu\tienda\ventas\MsVentasApplicationTests.class
+co\edu\tienda\ventas\VentaEndToEndTest$HttpMockConfig.class
+co\edu\tienda\ventas\VentaEndToEndTest.class
