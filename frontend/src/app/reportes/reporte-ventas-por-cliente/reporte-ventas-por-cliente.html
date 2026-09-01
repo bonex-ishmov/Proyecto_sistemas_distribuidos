@@ -1,0 +1,39 @@
+<div class="page-header">
+  <div>
+    <h2>Total de ventas por cliente</h2>
+    <p class="page-description">
+      Total acumulado con IVA por cliente, para los que tienen al menos una venta.
+    </p>
+  </div>
+  <a routerLink="/reportes">Volver a reportes</a>
+</div>
+
+@if (cargando()) {
+  <div class="loading">Cargando...</div>
+} @else if (filas().length === 0) {
+  <div class="empty-state">Todavía no hay ventas registradas.</div>
+} @else {
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th>Cédula</th>
+          <th>Total con IVA</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (fila of filas(); track fila.cedulaCliente) {
+          <tr>
+            <td class="celda-nombre">
+              <app-avatar [nombre]="fila.nombreCliente" />
+              {{ fila.nombreCliente }}
+            </td>
+            <td>{{ fila.cedulaCliente }}</td>
+            <td>{{ fila.totalConIva | number: '1.2-2' }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

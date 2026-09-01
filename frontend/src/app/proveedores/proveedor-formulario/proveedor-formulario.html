@@ -1,0 +1,40 @@
+<div class="page-header">
+  <div>
+    <h2>{{ modoEdicion() ? 'Editar proveedor' : 'Nuevo proveedor' }}</h2>
+    <p class="page-description">Datos de contacto del proveedor.</p>
+  </div>
+</div>
+
+<form class="form" [formGroup]="formulario" (ngSubmit)="guardar()">
+  <div class="form-field">
+    <label for="nitproveedor">NIT</label>
+    <input id="nitproveedor" type="number" formControlName="nitproveedor" />
+  </div>
+
+  <div class="form-field">
+    <label for="nombreProveedor">Nombre</label>
+    <input id="nombreProveedor" type="text" formControlName="nombreProveedor" />
+  </div>
+
+  <div class="form-field">
+    <label for="direccionProveedor">Dirección</label>
+    <input id="direccionProveedor" type="text" formControlName="direccionProveedor" />
+  </div>
+
+  <div class="form-field">
+    <label for="telefonoProveedor">Teléfono</label>
+    <input id="telefonoProveedor" type="text" formControlName="telefonoProveedor" />
+  </div>
+
+  <div class="form-field">
+    <label for="ciudadProveedor">Ciudad</label>
+    <input id="ciudadProveedor" type="text" formControlName="ciudadProveedor" />
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn--primary" [disabled]="formulario.invalid || enviando()">
+      {{ enviando() ? 'Guardando...' : 'Guardar' }}
+    </button>
+    <a routerLink="/proveedores">Cancelar</a>
+  </div>
+</form>

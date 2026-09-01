@@ -1,0 +1,40 @@
+<div class="page-header">
+  <div>
+    <h2>{{ modoEdicion() ? 'Editar cliente' : 'Nuevo cliente' }}</h2>
+    <p class="page-description">Datos de contacto del cliente.</p>
+  </div>
+</div>
+
+<form class="form" [formGroup]="formulario" (ngSubmit)="guardar()">
+  <div class="form-field">
+    <label for="cedulaCliente">Cédula</label>
+    <input id="cedulaCliente" type="number" formControlName="cedulaCliente" />
+  </div>
+
+  <div class="form-field">
+    <label for="nombreCliente">Nombre completo</label>
+    <input id="nombreCliente" type="text" formControlName="nombreCliente" />
+  </div>
+
+  <div class="form-field">
+    <label for="direccionCliente">Dirección</label>
+    <input id="direccionCliente" type="text" formControlName="direccionCliente" />
+  </div>
+
+  <div class="form-field">
+    <label for="telefonoCliente">Teléfono</label>
+    <input id="telefonoCliente" type="text" formControlName="telefonoCliente" />
+  </div>
+
+  <div class="form-field">
+    <label for="emailCliente">Correo electrónico</label>
+    <input id="emailCliente" type="email" formControlName="emailCliente" />
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn--primary" [disabled]="formulario.invalid || enviando()">
+      {{ enviando() ? 'Guardando...' : 'Guardar' }}
+    </button>
+    <a routerLink="/clientes">Cancelar</a>
+  </div>
+</form>

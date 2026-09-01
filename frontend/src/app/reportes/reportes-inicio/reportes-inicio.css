@@ -1,0 +1,13 @@
+.lista-reportes {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 20rem;
+}
+
+.lista-reportes .btn {
+  width: 100%;
+  justify-content: flex-start;
+}

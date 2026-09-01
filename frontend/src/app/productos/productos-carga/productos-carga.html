@@ -1,0 +1,43 @@
+<div class="page-header">
+  <div>
+    <h2>Cargar productos desde CSV</h2>
+    <p class="page-description">
+      Columnas esperadas, en este orden: <code>codigo_producto, nombre_producto, nitproveedor,
+      precio_compra, ivacompra, precio_venta</code>. La cabecera es opcional (se detecta sola).
+    </p>
+  </div>
+</div>
+
+<div class="alert alert--warning">
+  ⚠️ Esto <strong>reemplaza toda la tabla de productos</strong>. No lo hagas mientras un
+  compañero esté trabajando con el catálogo.
+</div>
+
+<div class="form-actions">
+  <input type="file" accept=".csv" (change)="seleccionar($event)" />
+</div>
+
+<div class="form-actions">
+  <button type="button" class="btn btn--primary" [disabled]="!archivo() || enviando()" (click)="cargar()">
+    {{ enviando() ? 'Cargando...' : 'Cargar archivo' }}
+  </button>
+  <a routerLink="/productos">Volver al listado</a>
+</div>
+
+@if (resultado(); as resultado) {
+  <div class="alert alert--success">
+    <p>{{ resultado.mensaje }}</p>
+    <p>{{ resultado.registrosEliminados }} eliminados, {{ resultado.registrosCargados }} cargados.</p>
+  </div>
+}
+
+@if (errores(); as listaErrores) {
+  <div class="alert alert--error">
+    <p>El archivo tiene errores y no se cargó nada:</p>
+    <ul>
+      @for (error of listaErrores; track error) {
+        <li>{{ error }}</li>
+      }
+    </ul>
+  </div>
+}

@@ -1,0 +1,69 @@
+/* Lo genérico (form, tabla, botones, alertas) sale de src/styles.css. Acá
+   solo lo propio de esta pantalla: el layout más ancho (tiene la tabla de
+   líneas adentro), la previsualización por línea y los totales. */
+
+.venta-form {
+  max-width: 44rem;
+}
+
+.celda-producto {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  white-space: normal;
+  min-width: 10rem;
+}
+
+.nombre-producto {
+  font-weight: 500;
+}
+
+.texto-tenue {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.texto-error {
+  color: var(--color-error-text);
+  font-size: 0.85rem;
+}
+
+.totales {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  gap: var(--space-1) var(--space-4);
+}
+
+.totales dt {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.totales dd {
+  margin: 0;
+}
+
+/* Previsualización: se distingue a propósito de los totales confirmados
+   (abajo, en .confirmacion) — es una estimación, no lo que va a quedar
+   guardado. Ver el comentario del componente. */
+.totales--previsualizacion {
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  max-width: 26rem;
+}
+
+.confirmacion {
+  margin-top: var(--space-5);
+  border-color: var(--color-success-border);
+  background: var(--color-success-bg);
+}
+
+.confirmacion h3 {
+  color: var(--color-success-text);
+}
+
+.confirmacion .totales {
+  margin-top: var(--space-4);
+}

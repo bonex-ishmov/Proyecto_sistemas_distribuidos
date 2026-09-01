@@ -1,0 +1,43 @@
+<div class="page-header">
+  <div>
+    <h2>Productos</h2>
+    <p class="page-description">Catálogo cargado desde archivo CSV.</p>
+  </div>
+  <a class="btn btn--primary" routerLink="/productos/cargar">Cargar archivo CSV</a>
+</div>
+
+@if (cargando()) {
+  <div class="loading">Cargando...</div>
+} @else if (productos().length === 0) {
+  <div class="empty-state">No hay productos cargados.</div>
+} @else {
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th>Código</th>
+          <th>Proveedor</th>
+          <th>Precio compra</th>
+          <th>IVA compra</th>
+          <th>Precio venta</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (producto of productos(); track producto.codigoProducto) {
+          <tr>
+            <td class="celda-nombre">
+              <app-avatar [nombre]="producto.nombreProducto" />
+              {{ producto.nombreProducto }}
+            </td>
+            <td>{{ producto.codigoProducto }}</td>
+            <td>{{ producto.nombreProveedor }}</td>
+            <td>{{ producto.precioCompra | number: '1.2-2' }}</td>
+            <td>{{ producto.ivacompra | number: '1.0-2' }}%</td>
+            <td>{{ producto.precioVenta | number: '1.2-2' }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

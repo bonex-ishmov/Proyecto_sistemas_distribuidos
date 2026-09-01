@@ -287,3 +287,19 @@ Actualización 2026-09-01 (Incremento 4 de ms-reportes — cierre del módulo):
     lógica de validación del JWT y hay que tocar las 5 copias a mano, el
     costo de seguir duplicando supera al de resolver (a) o (b), y ahí sí
     conviene extraer el módulo compartido.
+
+---
+
+Actualización 2026-09-01 (Incremento 0 del frontend — cimientos Angular):
+
+- Deuda técnica CORS: al agregar el frontend (`localhost:4200`) apareció el mismo
+  problema de duplicación que el del stack JWT, y por la misma razón (sin `pom.xml`
+  agregador, no hay dónde poner una librería compartida). Cada `SecurityConfig`
+  ganó un bean `corsConfigurationSource` **copiado verbatim en los 5 módulos**
+  (origen permitido configurable por `app.cors.allowed-origins` /
+  `CORS_ALLOWED_ORIGINS`, métodos GET/POST/PUT/PATCH/DELETE/OPTIONS, headers
+  `Authorization` y `Content-Type`), más una línea `.cors(Customizer.withDefaults())`
+  agregada a cada cadena de filtros. Mismo diagnóstico que la nota de arriba: se
+  pospone la extracción a un módulo compartido por la misma razón arquitectónica y
+  de alcance, y con el mismo disparador para revisarlo (un sexto módulo, o tener
+  que tocar las 5 copias a mano por un cambio real de política CORS).

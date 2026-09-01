@@ -90,6 +90,34 @@ have nothing to talk to.
   and authenticates everything else; `ms-clientes`, `ms-catalogo`, `ms-ventas` and
   `ms-reportes` authenticate every request — none of them has a public endpoint.
 
+### Frontend (Angular)
+- SPA en `frontend/` (Angular CLI 22, standalone components, sin NgModules), puerto
+  4200 en dev (`ng serve` / `npm start`).
+- **Zoneless**: el proyecto se creó con `--zoneless`, sin `zone.js`. Angular detecta
+  cambios por señales (`signal`/`computed`), no por el parcheo automático que
+  `zone.js` hace sobre promesas, `setTimeout` y eventos del DOM. Es un cambio de
+  comportamiento real frente a la mayoría de tutoriales y proyectos Angular < 18
+  (que sí asumen `zone.js`): mutar estado por fuera de una señal, o por fuera de un
+  evento que Angular ya maneja, no dispara detección de cambios sola. Guardar en
+  `signal` todo estado que una plantilla lee; los observables de `HttpClient` no
+  necesitan tratamiento especial (el scheduler zoneless los cubre).
+- **Token JWT en `localStorage`** (`SesionService`, clave `tienda.token`). Decisión
+  consciente con un trade-off conocido, no un descuido:
+  - Vulnerable a XSS: cualquier script inyectado en la página puede leer
+    `localStorage` desde JS. Con una cookie `httpOnly` ese vector se cierra, porque
+    el JS del navegador ni siquiera puede leerla.
+  - Pero una cookie `httpOnly` exige rehacer la seguridad de los 5 backends: hoy son
+    stateless (`SessionCreationPolicy.STATELESS`) con CSRF deshabilitado porque el
+    JWT viaja a mano en el header `Authorization`, que un atacante no puede forzar a
+    mandar; una cookie la manda el navegador solo en cada petición, así que
+    reintroduce el problema que CSRF protege contra, y tocaría reactivar y coordinar
+    esa protección en los 5 `SecurityConfig`. Para un proyecto académico se aceptó
+    el riesgo de XSS a cambio de no reabrir esa superficie en los 5 módulos.
+  - Consecuencia práctica: no meter HTML de terceros sin sanitizar en el frontend
+    (Angular ya escapa interpolaciones `{{ }}` por defecto; el riesgo aparece si se
+    usa `[innerHTML]` con contenido no confiable) — si eso cambia, el trade-off deja
+    de sostenerse y hay que reconsiderar cookies `httpOnly`.
+
 ### Cross-service conventions
 - Services never share a database or use cross-schema foreign keys. Within `ms-catalogo`,
   `Producto` → `Proveedor` **is** a real FK (`fk_producto_proveedor`) because they live in

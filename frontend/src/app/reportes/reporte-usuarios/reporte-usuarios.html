@@ -1,0 +1,45 @@
+<div class="page-header">
+  <div>
+    <h2>Usuarios</h2>
+    <p class="page-description">Usuarios registrados en el sistema.</p>
+  </div>
+  <a routerLink="/reportes">Volver a reportes</a>
+</div>
+
+@if (cargando()) {
+  <div class="loading">Cargando...</div>
+} @else if (usuarios().length === 0) {
+  <div class="empty-state">No hay usuarios registrados.</div>
+} @else {
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Cédula</th>
+          <th>Correo</th>
+          <th>Usuario</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (usuario of usuarios(); track usuario.cedulaUsuario) {
+          <tr>
+            <td class="celda-nombre">
+              <app-avatar [nombre]="usuario.nombreUsuario" />
+              {{ usuario.nombreUsuario }}
+            </td>
+            <td>{{ usuario.cedulaUsuario }}</td>
+            <td>{{ usuario.emailUsuario }}</td>
+            <td>{{ usuario.usuario }}</td>
+            <td>
+              <span class="badge" [class.badge--activo]="usuario.activo" [class.badge--inactivo]="!usuario.activo">
+                {{ usuario.activo ? 'Activo' : 'Inactivo' }}
+              </span>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

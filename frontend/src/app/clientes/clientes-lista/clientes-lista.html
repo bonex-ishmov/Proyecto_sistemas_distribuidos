@@ -1,0 +1,48 @@
+<div class="page-header">
+  <div>
+    <h2>Clientes</h2>
+    <p class="page-description">Personas registradas para asociar a una venta.</p>
+  </div>
+  <a class="btn btn--primary" routerLink="/clientes/nuevo">Nuevo cliente</a>
+</div>
+
+@if (cargando()) {
+  <div class="loading">Cargando...</div>
+} @else if (clientes().length === 0) {
+  <div class="empty-state">No hay clientes registrados.</div>
+} @else {
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Cédula</th>
+          <th>Dirección</th>
+          <th>Teléfono</th>
+          <th>Correo</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (cliente of clientes(); track cliente.cedulaCliente) {
+          <tr>
+            <td class="celda-nombre">
+              <app-avatar [nombre]="cliente.nombreCliente" />
+              {{ cliente.nombreCliente }}
+            </td>
+            <td>{{ cliente.cedulaCliente }}</td>
+            <td>{{ cliente.direccionCliente }}</td>
+            <td>{{ cliente.telefonoCliente }}</td>
+            <td>{{ cliente.emailCliente }}</td>
+            <td class="table-actions">
+              <a [routerLink]="['/clientes', cliente.cedulaCliente, 'editar']">Editar</a>
+              <button type="button" class="btn btn--small btn--danger" (click)="eliminar(cliente)">
+                Eliminar
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

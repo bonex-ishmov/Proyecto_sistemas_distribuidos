@@ -1,0 +1,132 @@
+<div class="page-header">
+  <div>
+    <h2>Registrar venta</h2>
+    <p class="page-description">
+      Elegí el cliente y agregá productos por código; el nombre y el precio se completan solos.
+    </p>
+  </div>
+</div>
+
+<form class="form venta-form" (ngSubmit)="registrar()">
+  <div class="form-field">
+    <label for="cedulaCliente">Cédula del cliente</label>
+    <input id="cedulaCliente" type="number" [formControl]="cedulaCliente" />
+  </div>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Código de producto</th>
+          <th>Producto</th>
+          <th>Cantidad</th>
+          <th>Valor línea</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (linea of lineas; track linea; let i = $index) {
+          <tr [formGroup]="linea.grupo">
+            <td><input type="number" formControlName="codigoProducto" /></td>
+            <td class="celda-producto">
+              @if (linea.buscandoProducto()) {
+                <span class="texto-tenue">Buscando...</span>
+              } @else if (linea.errorProducto(); as error) {
+                <span class="texto-error">{{ error }}</span>
+              } @else if (linea.producto(); as producto) {
+                <span class="nombre-producto">{{ producto.nombreProducto }}</span>
+                <span class="texto-tenue">({{ producto.precioVenta | number: '1.2-2' }} c/u)</span>
+              } @else {
+                <span class="texto-tenue">—</span>
+              }
+            </td>
+            <td><input type="number" formControlName="cantidad" /></td>
+            <td>
+              @if (totalLinea(linea); as total) {
+                {{ total | number: '1.2-2' }}
+              } @else {
+                <span class="texto-tenue">—</span>
+              }
+            </td>
+            <td>
+              <button
+                type="button"
+                class="btn btn--small btn--ghost"
+                (click)="quitarLinea(i)"
+                [disabled]="lineas.length <= 1"
+              >
+                Quitar
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <dl class="totales totales--previsualizacion">
+    <dt>Total Venta <span class="texto-tenue">(previsualización)</span></dt>
+    <dd>{{ totalVentaAcumulado() | number: '1.2-2' }}</dd>
+    <dt>Total IVA <span class="texto-tenue">(previsualización)</span></dt>
+    <dd>{{ totalIvaAcumulado() | number: '1.2-2' }}</dd>
+    <dt>Total con IVA <span class="texto-tenue">(previsualización)</span></dt>
+    <dd>{{ totalConIvaAcumulado() | number: '1.2-2' }}</dd>
+  </dl>
+
+  <div class="form-actions">
+    <button type="button" class="btn btn--ghost" (click)="agregarLinea()">Agregar producto</button>
+    <button type="submit" class="btn btn--primary" [disabled]="enviando()">
+      {{ enviando() ? 'Registrando...' : 'Registrar venta' }}
+    </button>
+  </div>
+
+  @if (errorLineas(); as error) {
+    <div class="alert alert--error">{{ error }}</div>
+  }
+</form>
+
+@if (ventaRegistrada(); as venta) {
+  <div class="card confirmacion">
+    <h3>✓ Venta #{{ venta.codigoVenta }} registrada</h3>
+    <p class="texto-tenue">Cliente: {{ venta.cedulaCliente }} — {{ venta.fechaVenta | date: 'medium' }}</p>
+
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Cantidad</th>
+            <th>Valor unitario</th>
+            <th>% IVA</th>
+            <th>Valor IVA</th>
+            <th>Valor total</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (detalle of venta.detalles; track detalle.idDetalle) {
+            <tr>
+              <td class="celda-nombre">
+                <app-avatar [nombre]="detalle.nombreProducto" />
+                {{ detalle.nombreProducto }}
+              </td>
+              <td>{{ detalle.cantidad }}</td>
+              <td>{{ detalle.valorUnitario | number: '1.2-2' }}</td>
+              <td>{{ detalle.ivaPorcentaje | number: '1.0-2' }}%</td>
+              <td>{{ detalle.valorIva | number: '1.2-2' }}</td>
+              <td>{{ detalle.valorTotal | number: '1.2-2' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <dl class="totales">
+      <dt>Total Venta</dt>
+      <dd>{{ venta.totalVenta | number: '1.2-2' }}</dd>
+      <dt>Total IVA</dt>
+      <dd>{{ venta.valorIva | number: '1.2-2' }}</dd>
+      <dt>Total con IVA</dt>
+      <dd>{{ venta.totalConIva | number: '1.2-2' }}</dd>
+    </dl>
+  </div>
+}

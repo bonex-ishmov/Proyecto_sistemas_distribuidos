@@ -6,6 +6,7 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
+        <module name="ms-reportes" />
         <module name="ms-identidad" />
         <module name="ms-clientes" />
         <module name="ms-catalogo" />
@@ -18,6 +19,7 @@
       <module name="ms-catalogo" options="-parameters" />
       <module name="ms-clientes" options="-parameters" />
       <module name="ms-identidad" options="-parameters" />
+      <module name="ms-reportes" options="-parameters" />
       <module name="ms-ventas" options="-parameters" />
     </option>
   </component>
