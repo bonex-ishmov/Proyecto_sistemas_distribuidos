@@ -258,3 +258,32 @@ Actualización 2026-08-30 (Incremento 1 de ms-ventas):
   SÍ se versionan. El de ms-ventas se creó ya con placeholders
   (`PON_AQUI_LA_CLAVE`, `PON_AQUI_EL_SECRETO`). Hay que reemplazar los literales
   por placeholders en los otros dos módulos y rotar esas credenciales.
+
+---
+
+Actualización 2026-09-01 (Incremento 4 de ms-reportes — cierre del módulo):
+
+- Deuda técnica JWT: con ms-reportes construido, la copia verbatim
+  (`JwtService` de solo verificación + `JwtAuthenticationFilter` +
+  `JwtAuthenticationEntryPoint` + `SecurityConfig`) ya está en **5 módulos**
+  (ms-identidad, ms-clientes, ms-catalogo, ms-ventas, ms-reportes; ms-identidad
+  además tiene el método de firma). Se evaluó extraerla a un módulo Maven común
+  (`tienda-seguridad-jwt`) antes de sumar esta quinta copia, como quedó anotado
+  en la actualización del 2026-08-30, y se decidió **posponerlo**, no
+  descartarlo:
+  - Razón arquitectónica: CLAUDE.md fija como decisión de diseño que el repo
+    **no tiene `pom.xml` padre/agregador** — cada módulo es un proyecto Maven
+    standalone con su propio wrapper, ejecutable de forma independiente.
+    Compartir una librería Java entre módulos standalone exige una de dos
+    cosas: (a) introducir un pom agregador (contradice esa decisión), o (b)
+    publicar el módulo compartido a un repositorio Maven local o remoto
+    (agrega infraestructura: coordinar versión, y que cada integrante lo
+    instale/actualice antes de poder compilar).
+  - Razón de alcance: para un proyecto académico, el costo de (a) o (b) no se
+    justifica todavía frente al tamaño de lo duplicado (4 clases,
+    ~150 líneas por copia) y a que la lógica de verificación no ha cambiado
+    desde ms-identidad.
+  - Esto NO es indefinido: si aparece un sexto módulo, o si hay que cambiar la
+    lógica de validación del JWT y hay que tocar las 5 copias a mano, el
+    costo de seguir duplicando supera al de resolver (a) o (b), y ahí sí
+    conviene extraer el módulo compartido.

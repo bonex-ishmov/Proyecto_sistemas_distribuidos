@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A monorepo of three **independent** Spring Boot 4.1 / Java 25 microservices for a generic
+A monorepo of five **independent** Spring Boot 4.1 / Java 25 microservices for a generic
 store ("Tienda Generica"), built for a distributed-systems course. Domain language,
 identifiers, and messages are all in Spanish — keep new code consistent with that.
 
@@ -13,6 +13,8 @@ identifiers, and messages are all in Spanish — keep new code consistent with t
 | `ms-identidad`| 8081 | `db_identidad`| Login + user (`usuario`) CRUD. **Only service that mints JWTs.** |
 | `ms-clientes` | 8082 | `db_clientes` | Customer (`cliente`) CRUD.                                  |
 | `ms-catalogo` | 8083 | `db_catalogo` | Supplier (`proveedor`) + product (`producto`) CRUD, CSV bulk load. |
+| `ms-ventas`   | 8084 | `db_ventas`   | Sale (`venta` + `detalle_venta`) registration and lookup, IVA/total calculation; validates `cedula_cliente` over HTTP against ms-clientes (`cedula_usuario` is trusted from the JWT, not validated against ms-identidad — see "Persistencia entre microservicios"). |
+| `ms-reportes` | 8085 | *(none — no DB of its own)* | Módulo 7 read-only queries (usuarios, clientes, ventas-por-cliente): pure HTTP aggregator over ms-identidad, ms-clientes and ms-ventas. |
 
 There is **no aggregator/parent `pom.xml`** at the repo root. Each module is a standalone
 Maven project with its own wrapper. All Maven commands must be run from inside the module directory.
@@ -36,14 +38,15 @@ and do **not** load a Spring context, so they run fast and need no database.
 
 - The database is a **shared remote MySQL 9.4 on Railway** (`altaria.proxy.rlwy.net:40105`),
   used by the whole team. Services run with `ddl-auto=validate` and never create or alter tables.
-- The schema is versioned: run `db/schema.sql` (creates the 3 schemas + all tables), then
+- The schema is versioned: run `db/schema.sql` (creates the 4 schemas + all tables — `ms-reportes` has none), then
   `db/seed.sql` (seeds the 5 suppliers referenced by `ms-catalogo/productos.csv`).
 - Each module reads `spring.datasource.*` and `app.jwt.secret` from a **git-ignored**
   `src/main/resources/application-local.properties` (copy it from the committed
   `application-local.properties.example`, drop the `.example` suffix, fill in real values).
   `application.properties` pulls it in via `spring.config.import=optional:classpath:application-local.properties`
   — no profile to activate; the service will not start if the file is missing (tests use H2 instead).
-  The datasource URL must use `useSSL=true`; `app.jwt.secret` must be byte-identical across the three modules.
+  The datasource URL must use `useSSL=true`; `app.jwt.secret` must be byte-identical across all five modules
+  (`ms-reportes` has no datasource, but it still needs `app.jwt.secret` to verify tokens).
 - Shared-DB caveat: `POST /api/productos/carga` wipes the whole `productos` table — never run it
   while a teammate is working.
 - `ms-identidad` seeds an initial admin (`admininicial` / `admin123456`) via `DataInitializer`
@@ -55,6 +58,11 @@ and do **not** load a Spring context, so they run fast and need no database.
 `Controller` (`@RestController`, `/api/...`) → `Service` (`@Service`, `@Transactional`, all
 business rules and validation) → `Repository` (Spring Data JPA).
 
+`ms-reportes` is the deliberate exception: it has no database, so there is no `Repository`
+layer. It goes `Controller` → `Service` → `Gateway` (HTTP adapters that call ms-identidad,
+ms-clientes and ms-ventas) instead — it persists nothing of its own, so a repository would
+have nothing to talk to.
+
 - **DTOs are Java `record`s** (`*Request`, `*Update Request`, `*Response`). Entities are never
   exposed directly.
 - **Mappers are static utility classes** (`UsuarioMapper.aResponse(...)`), not Spring beans.
@@ -65,25 +73,30 @@ business rules and validation) → `Repository` (Spring Data JPA).
   - bean-validation failure → 400
   - `CredencialesInvalidasException` → 401 (`ms-identidad` only)
   - `ms-catalogo` adds `ArchivoInvalidoException` and `DatosInvalidosException` for CSV errors.
+  - `ms-ventas` and `ms-reportes` add `DependenciaNoDisponibleException` → 503 (an outbound HTTP
+    call to another service failed).
 
 ### Authentication — shared secret, single issuer
-- All three services share the **same HS256 secret** in `app.jwt.secret`
+- All five services share the **same HS256 secret** in `app.jwt.secret`
   (`application.properties`). It **must be byte-identical** across modules or token
   verification fails.
 - Only `ms-identidad` creates tokens (`JwtService.generarToken` in `AuthService.login`).
   Subject = `usuario`; claims = `cedula`, `nombre`. Default TTL 1h (`app.jwt.expiracion-ms`).
 - `JwtAuthenticationFilter` + `JwtService` are **copied almost verbatim into every module**
   (only the package differs). The copies **only verify the signature** — no DB lookup, no
-  roles. When changing auth logic, apply the same change to all three copies.
+  roles. When changing auth logic, apply the same change to all five copies (tracked as
+  deliberate, unresolved debt — see `docs/diagnostico.md`).
 - `SecurityConfig`: stateless session, CSRF disabled. `ms-identidad` permits `/api/auth/**`
-  and authenticates everything else; `ms-clientes` and `ms-catalogo` authenticate every request.
+  and authenticates everything else; `ms-clientes`, `ms-catalogo`, `ms-ventas` and
+  `ms-reportes` authenticate every request — none of them has a public endpoint.
 
 ### Cross-service conventions
 - Services never share a database or use cross-schema foreign keys. Within `ms-catalogo`,
   `Producto` → `Proveedor` **is** a real FK (`fk_producto_proveedor`) because they live in
   the same schema.
 - `POST /api/{recurso}/lote` endpoints take a list of IDs and return many records in one
-  call — intended for future internal service-to-service reads (`ms-ventas`, `ms-reportes`).
+  call — used for internal service-to-service reads: `ms-ventas` calls the `ms-clientes` and
+  `ms-catalogo` ones to validate a sale, `ms-reportes` calls the `ms-clientes` one to resolve names.
 
 ### CSV bulk load (`ms-catalogo`)
 `POST /api/productos/carga`, `multipart/form-data`, part name `archivo`. The service reads the
@@ -141,17 +154,19 @@ cuando el PDF diga otra cosa, gana lo de aquí:
 - Carga CSV de productos: modo reemplazo total de la tabla, en una transacción.
 - Versiones: se usa Java y Spring Boot actuales. Las versiones del PDF (Java 11,
   Spring Boot 2.4.5) no obligan.
-- Microservicios pendientes por construir: `ms-ventas` y `ms-reportes`.
 
 ## Persistencia entre microservicios
 
 El PDF diseña UNA sola base de datos con FKs entre `ventas`, `clientes`, `usuarios`
 y `productos`. Esta arquitectura NO hace eso: un esquema por servicio, sin FKs entre
 esquemas. Consecuencia para `ms-ventas`: guarda `cedula_cliente` y `cedula_usuario`
-como valores sin FK, y valida su existencia llamando por HTTP a `ms-clientes` y
-`ms-identidad` (los endpoints `/lote` existen para eso). Esas llamadas HTTP van
-autenticadas con el JWT del usuario de sistema (ver "Autenticación
-servicio-a-servicio").
+como valores sin FK. `cedula_cliente` sí se valida llamando por HTTP a `ms-clientes`
+(el endpoint `/lote` existe para eso), autenticado con el JWT del usuario de sistema
+(ver "Autenticación servicio-a-servicio"). `cedula_usuario` NO se valida contra
+`ms-identidad`: sale del claim `cedula` del JWT del usuario que hace la venta y se usa
+tal cual, porque el token ya prueba que `ms-identidad` autenticó a ese usuario.
+Decisión consciente para evitar un round-trip HTTP extra por cada venta; se asume la
+ventana de vigencia del token (1h, `app.jwt.expiracion-ms`).
 
 ## Cómo trabajar conmigo
 

@@ -1,1 +1,4 @@
 co\edu\tienda\reportes\MsReportesApplicationTests.class
+co\edu\tienda\reportes\ReporteEndToEndTest$HttpMockConfig.class
+co\edu\tienda\reportes\ReporteEndToEndTest.class
+co\edu\tienda\reportes\service\ReporteServiceTest.class
