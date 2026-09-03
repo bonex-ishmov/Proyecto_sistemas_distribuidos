@@ -13,8 +13,8 @@ identifiers, and messages are all in Spanish — keep new code consistent with t
 | `ms-identidad`| 8081 | `db_identidad`| Login + user (`usuario`) CRUD. **Only service that mints JWTs.** |
 | `ms-clientes` | 8082 | `db_clientes` | Customer (`cliente`) CRUD.                                  |
 | `ms-catalogo` | 8083 | `db_catalogo` | Supplier (`proveedor`) + product (`producto`) CRUD, CSV bulk load. |
-| `ms-ventas`   | 8084 | `db_ventas`   | Sale (`venta` + `detalle_venta`) registration and lookup, IVA/total calculation; validates `cedula_cliente` over HTTP against ms-clientes (`cedula_usuario` is trusted from the JWT, not validated against ms-identidad — see "Persistencia entre microservicios"). |
-| `ms-reportes` | 8085 | *(none — no DB of its own)* | Módulo 7 read-only queries (usuarios, clientes, ventas-por-cliente): pure HTTP aggregator over ms-identidad, ms-clientes and ms-ventas. |
+| `ms-ventas`   | 8084 | `db_ventas`   | Sale (`venta` + `detalle_venta`) registration and lookup, IVA/total calculation; validates `cedula_cliente` over HTTP against ms-clientes (`cedula_usuario` is trusted from the JWT, not validated against ms-identidad — see "Persistencia entre microservicios"). Also serves `GET /api/ventas/resumen` (ventas de hoy / del mes en curso by `fecha_venta`) for the dashboard. |
+| `ms-reportes` | 8085 | *(none — no DB of its own)* | Módulo 7 read-only queries (usuarios, clientes, ventas-por-cliente): pure HTTP aggregator over ms-identidad, ms-clientes, ms-catalogo and ms-ventas. Also serves `GET /api/reportes/resumen`, the single call the frontend dashboard makes (conteos de productos/clientes/proveedores/usuarios activos + resumen de ventas de ms-ventas). |
 
 There is **no aggregator/parent `pom.xml`** at the repo root. Each module is a standalone
 Maven project with its own wrapper. All Maven commands must be run from inside the module directory.
@@ -60,8 +60,9 @@ business rules and validation) → `Repository` (Spring Data JPA).
 
 `ms-reportes` is the deliberate exception: it has no database, so there is no `Repository`
 layer. It goes `Controller` → `Service` → `Gateway` (HTTP adapters that call ms-identidad,
-ms-clientes and ms-ventas) instead — it persists nothing of its own, so a repository would
-have nothing to talk to.
+ms-clientes, ms-catalogo and ms-ventas) instead — it persists nothing of its own, so a
+repository would have nothing to talk to. (ms-catalogo was added as a gateway for the
+`GET /api/reportes/resumen` dashboard endpoint, which needs product and supplier counts.)
 
 - **DTOs are Java `record`s** (`*Request`, `*Update Request`, `*Response`). Entities are never
   exposed directly.
@@ -125,6 +126,9 @@ have nothing to talk to.
 - `POST /api/{recurso}/lote` endpoints take a list of IDs and return many records in one
   call — used for internal service-to-service reads: `ms-ventas` calls the `ms-clientes` and
   `ms-catalogo` ones to validate a sale, `ms-reportes` calls the `ms-clientes` one to resolve names.
+- For `GET /api/reportes/resumen`, `ms-reportes` also does plain list reads against
+  `ms-catalogo` (`GET /api/productos`, `GET /api/proveedores`) and counts the rows — ms-catalogo
+  has no count endpoint. All service-to-service calls still carry the system-user JWT.
 
 ### CSV bulk load (`ms-catalogo`)
 `POST /api/productos/carga`, `multipart/form-data`, part name `archivo`. The service reads the

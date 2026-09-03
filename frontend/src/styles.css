@@ -80,6 +80,12 @@ body {
   color: var(--color-text);
   background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
+  /* La pantalla de login rompe a ancho completo con `width: 100vw` (ver
+     login.css). Cuando hay barra de scroll vertical, `100vw` supera al área
+     visible por el ancho de la barra; esto evita esa scroll horizontal. Ninguna
+     pantalla scrollea el documento en horizontal (las tablas usan su propio
+     `.table-wrap { overflow-x: auto }`). */
+  overflow-x: hidden;
 }
 
 h1,

@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.web.FilterChainProxy;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.client.match.MockRestRequestMatchers;
@@ -47,6 +48,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest
 @ActiveProfiles("test")
+// AutenticadorServicio es un singleton que CACHEA el token del usuario de sistema.
+// Con más de un test end-to-end en la clase, ese cache se filtraría entre tests y
+// el login de un test lo "consumiría" otro segun el orden. Contexto limpio por
+// método: cada test vuelve a hacer su propio login contra el MockRestServiceServer.
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class ReporteEndToEndTest {
 
     /**
@@ -151,6 +157,82 @@ class ReporteEndToEndTest {
                 .andExpect(jsonPath("$[1].cedulaCliente").value(333))
                 .andExpect(jsonPath("$[1].nombreCliente").value("Beto Diaz"))
                 .andExpect(jsonPath("$[1].totalConIva").value(1190.00));
+
+        servidor.verify();
+    }
+
+    @Test
+    @DisplayName("GET /api/reportes/resumen: agrega productos+proveedores (ms-catalogo), clientes, "
+            + "usuarios activos y el resumen de ventas en UNA respuesta")
+    void resumenDashboardPorLosAdaptadoresHttpReales() throws Exception {
+
+        servidor.expect(MockRestRequestMatchers.requestTo("http://ms-identidad.test/api/auth/login"))
+                .andExpect(MockRestRequestMatchers.method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {"token":"token-de-sistema","tipo":"Bearer","cedulaUsuario":2,
+                         "usuario":"ventas-sistema","nombreUsuario":"Ventas Sistema",
+                         "expiraEnMs":3600000}
+                        """, MediaType.APPLICATION_JSON));
+
+        servidor.expect(MockRestRequestMatchers.requestTo("http://ms-identidad.test/api/usuarios"))
+                .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
+                .andExpect(MockRestRequestMatchers.header("Authorization", "Bearer token-de-sistema"))
+                .andRespond(withSuccess("""
+                        [{"cedulaUsuario":1,"nombreUsuario":"Admin Inicial","emailUsuario":"a@x.com",
+                          "usuario":"admininicial","activo":false},
+                         {"cedulaUsuario":2,"nombreUsuario":"Ventas Sistema","emailUsuario":"s@x.com",
+                          "usuario":"ventas-sistema","activo":true},
+                         {"cedulaUsuario":50,"nombreUsuario":"Cajera 01","emailUsuario":"c1@x.com",
+                          "usuario":"cajera01","activo":true},
+                         {"cedulaUsuario":51,"nombreUsuario":"Cajera 02","emailUsuario":"c2@x.com",
+                          "usuario":"cajera02","activo":true}]
+                        """, MediaType.APPLICATION_JSON));
+
+        servidor.expect(MockRestRequestMatchers.requestTo("http://ms-catalogo.test/api/productos"))
+                .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
+                .andExpect(MockRestRequestMatchers.header("Authorization", "Bearer token-de-sistema"))
+                .andRespond(withSuccess("""
+                        [{"codigoProducto":10},{"codigoProducto":20},{"codigoProducto":30}]
+                        """, MediaType.APPLICATION_JSON));
+
+        servidor.expect(MockRestRequestMatchers.requestTo("http://ms-catalogo.test/api/proveedores"))
+                .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
+                .andExpect(MockRestRequestMatchers.header("Authorization", "Bearer token-de-sistema"))
+                .andRespond(withSuccess("""
+                        [{"nitproveedor":1},{"nitproveedor":2},{"nitproveedor":3},
+                         {"nitproveedor":4},{"nitproveedor":5}]
+                        """, MediaType.APPLICATION_JSON));
+
+        servidor.expect(MockRestRequestMatchers.requestTo("http://ms-clientes.test/api/clientes"))
+                .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
+                .andExpect(MockRestRequestMatchers.header("Authorization", "Bearer token-de-sistema"))
+                .andRespond(withSuccess("""
+                        [{"cedulaCliente":222,"nombreCliente":"Ana Ruiz","direccionCliente":"Calle 1",
+                          "telefonoCliente":"3000000","emailCliente":"ana@x.com"},
+                         {"cedulaCliente":333,"nombreCliente":"Beto Diaz","direccionCliente":"Calle 2",
+                          "telefonoCliente":"3000001","emailCliente":"beto@x.com"}]
+                        """, MediaType.APPLICATION_JSON));
+
+        servidor.expect(MockRestRequestMatchers.requestTo("http://ms-ventas.test/api/ventas/resumen"))
+                .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
+                .andExpect(MockRestRequestMatchers.header("Authorization", "Bearer token-de-sistema"))
+                .andRespond(withSuccess("""
+                        {"hoy":{"cantidad":3,"montoTotalConIva":154900.00},
+                         "mes":{"cantidad":27,"montoTotalConIva":1875300.00}}
+                        """, MediaType.APPLICATION_JSON));
+
+        mockMvc.perform(get("/api/reportes/resumen")
+                        .header("Authorization", "Bearer " + jwtDeUsuario(111)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.productos").value(3))
+                .andExpect(jsonPath("$.clientes").value(2))
+                .andExpect(jsonPath("$.proveedores").value(5))
+                // admininicial (inactivo) y ventas-sistema (usuario de sistema) no cuentan
+                .andExpect(jsonPath("$.usuariosActivos").value(2))
+                .andExpect(jsonPath("$.ventas.hoy.cantidad").value(3))
+                .andExpect(jsonPath("$.ventas.hoy.montoTotalConIva").value(154900.00))
+                .andExpect(jsonPath("$.ventas.mes.cantidad").value(27))
+                .andExpect(jsonPath("$.ventas.mes.montoTotalConIva").value(1875300.00));
 
         servidor.verify();
     }

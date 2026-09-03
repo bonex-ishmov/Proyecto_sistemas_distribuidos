@@ -1,8 +1,10 @@
 package co.edu.tienda.reportes.service;
 
 import co.edu.tienda.reportes.dto.ClienteResponse;
+import co.edu.tienda.reportes.dto.ResumenDashboardResponse;
 import co.edu.tienda.reportes.dto.UsuarioResponse;
 import co.edu.tienda.reportes.dto.VentasPorClienteResponse;
+import co.edu.tienda.reportes.gateway.CatalogoGateway;
 import co.edu.tienda.reportes.gateway.ClientesGateway;
 import co.edu.tienda.reportes.gateway.IdentidadGateway;
 import co.edu.tienda.reportes.gateway.TotalVentasCliente;
@@ -28,6 +30,7 @@ public class ReporteService {
     private final IdentidadGateway identidadGateway;
     private final ClientesGateway clientesGateway;
     private final VentasGateway ventasGateway;
+    private final CatalogoGateway catalogoGateway;
 
     /**
      * Cédula del usuario de sistema (compartido con ms-ventas) que se oculta del
@@ -40,10 +43,12 @@ public class ReporteService {
     public ReporteService(IdentidadGateway identidadGateway,
                           ClientesGateway clientesGateway,
                           VentasGateway ventasGateway,
+                          CatalogoGateway catalogoGateway,
                           @Value("${app.reportes.cedula-usuario-sistema:2}") long cedulaUsuarioSistema) {
         this.identidadGateway = identidadGateway;
         this.clientesGateway = clientesGateway;
         this.ventasGateway = ventasGateway;
+        this.catalogoGateway = catalogoGateway;
         this.cedulaUsuarioSistema = cedulaUsuarioSistema;
     }
 
@@ -94,5 +99,29 @@ public class ReporteService {
                         nombrePorCedula.getOrDefault(t.cedulaCliente(), NOMBRE_CLIENTE_DESCONOCIDO),
                         t.totalConIva()))
                 .toList();
+    }
+
+    /**
+     * Resumen para el dashboard de inicio del frontend (GET /api/reportes/resumen).
+     * Una sola respuesta que agrega cinco lecturas HTTP: productos y proveedores
+     * de ms-catalogo, clientes de ms-clientes, usuarios activos de ms-identidad y
+     * el resumen de ventas de ms-ventas. Si alguna dependencia falla, el gateway
+     * lanza DependenciaNoDisponibleException (503) y no hay respuesta parcial.
+     *
+     * usuariosActivos reutiliza {@link #listarUsuarios()}, que ya excluye al
+     * usuario de sistema; de ahí solo se cuentan los que tienen activo = true
+     * (admininicial cuenta únicamente si sigue activo).
+     */
+    public ResumenDashboardResponse resumenDashboard() {
+        long usuariosActivos = listarUsuarios().stream()
+                .filter(u -> Boolean.TRUE.equals(u.activo()))
+                .count();
+
+        return new ResumenDashboardResponse(
+                catalogoGateway.contarProductos(),
+                clientesGateway.listarClientes().size(),
+                catalogoGateway.contarProveedores(),
+                usuariosActivos,
+                ventasGateway.resumen());
     }
 }

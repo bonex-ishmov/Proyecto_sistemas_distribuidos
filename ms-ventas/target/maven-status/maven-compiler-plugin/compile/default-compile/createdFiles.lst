@@ -9,6 +9,7 @@ co\edu\tienda\ventas\security\JwtAuthenticationEntryPoint.class
 co\edu\tienda\ventas\gateway\CatalogoHttpAdapter$ProductoCatalogo.class
 co\edu\tienda\ventas\entity\DetalleVenta.class
 co\edu\tienda\ventas\gateway\ClientesHttpAdapter.class
+co\edu\tienda\ventas\dto\ResumenVentasResponse.class
 co\edu\tienda\ventas\dto\TotalPorClienteResponse.class
 co\edu\tienda\ventas\exception\ReglaNegocioException.class
 co\edu\tienda\ventas\exception\RecursoNoEncontradoException.class
@@ -18,6 +19,7 @@ co\edu\tienda\ventas\repository\VentaRepository.class
 co\edu\tienda\ventas\security\JwtService.class
 co\edu\tienda\ventas\dto\LineaVentaRequest.class
 co\edu\tienda\ventas\gateway\ClientesGateway.class
+co\edu\tienda\ventas\dto\ResumenPeriodoResponse.class
 co\edu\tienda\ventas\MsVentasApplication.class
 co\edu\tienda\ventas\gateway\CatalogoGateway.class
 co\edu\tienda\ventas\gateway\CatalogoHttpAdapter$1.class

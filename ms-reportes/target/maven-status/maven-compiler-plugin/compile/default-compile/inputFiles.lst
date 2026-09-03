@@ -2,6 +2,8 @@ C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-reportes\src\main\j
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-reportes\src\main\java\co\edu\tienda\reportes\config\SecurityConfig.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-reportes\src\main\java\co\edu\tienda\reportes\controller\ReporteController.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-reportes\src\main\java\co\edu\tienda\reportes\dto\ClienteResponse.java
+C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-reportes\src\main\java\co\edu\tienda\reportes\dto\ResumenDashboardResponse.java
+C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-reportes\src\main\java\co\edu\tienda\reportes\dto\ResumenVentas.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-reportes\src\main\java\co\edu\tienda\reportes\dto\UsuarioResponse.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-reportes\src\main\java\co\edu\tienda\reportes\dto\VentasPorClienteResponse.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-reportes\src\main\java\co\edu\tienda\reportes\exception\DependenciaNoDisponibleException.java
@@ -10,6 +12,8 @@ C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-reportes\src\main\j
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-reportes\src\main\java\co\edu\tienda\reportes\exception\RecursoNoEncontradoException.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-reportes\src\main\java\co\edu\tienda\reportes\exception\ReglaNegocioException.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-reportes\src\main\java\co\edu\tienda\reportes\gateway\AutenticadorServicio.java
+C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-reportes\src\main\java\co\edu\tienda\reportes\gateway\CatalogoGateway.java
+C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-reportes\src\main\java\co\edu\tienda\reportes\gateway\CatalogoHttpAdapter.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-reportes\src\main\java\co\edu\tienda\reportes\gateway\ClientesGateway.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-reportes\src\main\java\co\edu\tienda\reportes\gateway\ClientesHttpAdapter.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-reportes\src\main\java\co\edu\tienda\reportes\gateway\IdentidadGateway.java

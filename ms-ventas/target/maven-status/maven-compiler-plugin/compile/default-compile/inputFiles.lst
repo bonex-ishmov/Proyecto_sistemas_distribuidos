@@ -4,6 +4,8 @@ C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\jav
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\dto\LineaVentaRequest.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\dto\LineaVentaResponse.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\dto\RegistrarVentaRequest.java
+C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\dto\ResumenPeriodoResponse.java
+C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\dto\ResumenVentasResponse.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\dto\TotalPorClienteResponse.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\dto\VentaResponse.java
 C:\Users\User\IdeaProjects\Proyecto_sistemas_distribuidos\ms-ventas\src\main\java\co\edu\tienda\ventas\entity\DetalleVenta.java

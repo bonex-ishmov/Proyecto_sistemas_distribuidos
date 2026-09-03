@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { environment } from '../../environments/environment';
 import { ClienteResponse } from '../clientes/cliente.model';
 import { UsuarioResponse } from '../usuarios/usuario.model';
+import { ResumenDashboard } from './resumen-dashboard.model';
 import { VentasPorClienteResponse } from './ventas-por-cliente.model';
 
 /**
@@ -25,5 +26,10 @@ export class ReporteService {
 
   ventasPorCliente() {
     return this.http.get<VentasPorClienteResponse[]>(`${this.base}/ventas-por-cliente`);
+  }
+
+  /** Resumen del dashboard de inicio: conteos + ventas de hoy y del mes. */
+  resumenDashboard() {
+    return this.http.get<ResumenDashboard>(`${this.base}/resumen`);
   }
 }

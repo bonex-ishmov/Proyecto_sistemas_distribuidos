@@ -30,6 +30,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -170,5 +171,21 @@ class VentaEndToEndTest {
         assertThat(venta.getTotalConIva()).isEqualByComparingTo("5950.00");
         assertThat(venta.getDetalles()).hasSize(1);
         assertThat(venta.getDetalles().get(0).getNombreProducto()).isEqualTo("Arroz Diana 500g");
+    }
+
+    @Test
+    @DisplayName("GET /api/ventas/resumen: ejecuta las dos consultas agregadas contra la BD; "
+            + "tabla vacia -> hoy y mes en 0 / 0.00")
+    void resumenEjecutaLasConsultasAgregadas() throws Exception {
+        // @BeforeEach ya hizo deleteAll(): sin ventas, COUNT = 0 y SUM = null, que
+        // VentaService normaliza a 0.00. Resultado deterministico, sin depender de
+        // la zona horaria del JVM que corre el test.
+        mockMvc.perform(get("/api/ventas/resumen")
+                        .header("Authorization", "Bearer " + jwtDeUsuario(111)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hoy.cantidad").value(0))
+                .andExpect(jsonPath("$.hoy.montoTotalConIva").value(0.00))
+                .andExpect(jsonPath("$.mes.cantidad").value(0))
+                .andExpect(jsonPath("$.mes.montoTotalConIva").value(0.00));
     }
 }

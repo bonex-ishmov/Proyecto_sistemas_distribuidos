@@ -2,6 +2,8 @@ package co.edu.tienda.ventas.service;
 
 import co.edu.tienda.ventas.dto.LineaVentaRequest;
 import co.edu.tienda.ventas.dto.RegistrarVentaRequest;
+import co.edu.tienda.ventas.dto.ResumenPeriodoResponse;
+import co.edu.tienda.ventas.dto.ResumenVentasResponse;
 import co.edu.tienda.ventas.dto.TotalPorClienteResponse;
 import co.edu.tienda.ventas.entity.DetalleVenta;
 import co.edu.tienda.ventas.entity.Venta;
@@ -14,8 +16,12 @@ import co.edu.tienda.ventas.repository.VentaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
@@ -225,5 +231,60 @@ class VentaServiceTest {
         when(ventaRepository.totalConIvaPorCliente()).thenReturn(filas);
 
         assertEquals(filas, ventaService.totalPorCliente());
+    }
+
+    // ---------- resumen para el dashboard ----------
+
+    @Test
+    @DisplayName("resumen mapea el periodo de hoy y el del mes con lo que agrega el repositorio")
+    void resumenSeparaHoyYMes() {
+        when(ventaRepository.resumenEntre(any(), any())).thenReturn(
+                new ResumenPeriodoResponse(3L, new BigDecimal("154900.00")),
+                new ResumenPeriodoResponse(27L, new BigDecimal("1875300.00")));
+
+        ResumenVentasResponse resumen = ventaService.resumen();
+
+        assertEquals(3L, resumen.hoy().cantidad());
+        assertImporte("154900.00", resumen.hoy().montoTotalConIva());
+        assertEquals(27L, resumen.mes().cantidad());
+        assertImporte("1875300.00", resumen.mes().montoTotalConIva());
+    }
+
+    @Test
+    @DisplayName("resumen consulta [inicio de hoy, mañana) y [dia 1 del mes, dia 1 del mes siguiente) en zona Bogota")
+    void resumenCalculaLosRangosEnZonaTienda() {
+        when(ventaRepository.resumenEntre(any(), any()))
+                .thenReturn(new ResumenPeriodoResponse(0L, BigDecimal.ZERO));
+
+        ventaService.resumen();
+
+        ArgumentCaptor<LocalDateTime> desde = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<LocalDateTime> hasta = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(ventaRepository, times(2)).resumenEntre(desde.capture(), hasta.capture());
+
+        LocalDate hoyBogota = LocalDate.now(ZoneId.of("America/Bogota"));
+
+        LocalDateTime inicioHoy = desde.getAllValues().get(0);
+        LocalDateTime inicioManana = hasta.getAllValues().get(0);
+        assertEquals(hoyBogota.atStartOfDay(), inicioHoy);
+        assertEquals(hoyBogota.plusDays(1).atStartOfDay(), inicioManana);
+
+        LocalDateTime inicioMes = desde.getAllValues().get(1);
+        LocalDateTime inicioMesSiguiente = hasta.getAllValues().get(1);
+        assertEquals(hoyBogota.withDayOfMonth(1).atStartOfDay(), inicioMes);
+        assertEquals(hoyBogota.withDayOfMonth(1).plusMonths(1).atStartOfDay(), inicioMesSiguiente);
+    }
+
+    @Test
+    @DisplayName("resumen normaliza el monto: SUM null (periodo sin ventas) -> 0.00, y escala a 2 decimales")
+    void resumenNormalizaEscalaDelMonto() {
+        when(ventaRepository.resumenEntre(any(), any())).thenReturn(
+                new ResumenPeriodoResponse(0L, null),
+                new ResumenPeriodoResponse(1L, new BigDecimal("100")));
+
+        ResumenVentasResponse resumen = ventaService.resumen();
+
+        assertEquals("0.00", resumen.hoy().montoTotalConIva().toPlainString());
+        assertEquals("100.00", resumen.mes().montoTotalConIva().toPlainString());
     }
 }

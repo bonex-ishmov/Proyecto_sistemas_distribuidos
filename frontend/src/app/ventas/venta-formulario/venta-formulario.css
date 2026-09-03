@@ -1,21 +1,215 @@
-/* Lo genérico (form, tabla, botones, alertas) sale de src/styles.css. Acá
-   solo lo propio de esta pantalla: el layout más ancho (tiene la tabla de
-   líneas adentro), la previsualización por línea y los totales. */
+/* Registro de venta: traducción a CSS propio de docs/mockups/ventas.html
+   (el mockup usa Tailwind; acá NO). Tokens de src/styles.css + radios y
+   sombras suaves del mockup. Solo maquetación; la lógica vive en el .ts. */
 
-.venta-form {
-  max-width: 44rem;
+:host {
+  --r: 1rem; /* rounded-2xl */
+  --r-sm: 0.7rem;
+  --shadow-soft:
+    0 10px 30px -5px rgba(0, 0, 0, 0.04), 0 4px 12px -2px rgba(0, 0, 0, 0.02);
+  display: block;
+}
+
+.venta-header {
+  margin-bottom: var(--space-5);
+}
+
+.venta-header h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.875rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: #0f172a;
+}
+
+.venta-header p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+.venta-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.card-seccion {
+  padding: var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-soft);
+}
+
+/* ===== Selector de cliente ===== */
+
+.campo-cliente > label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.input-icono {
+  position: relative;
+}
+
+.input-icono-ini,
+.input-icono-fin {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.input-icono-ini {
+  left: 0.85rem;
+}
+
+.input-icono-fin {
+  right: 0.75rem;
+}
+
+.input-icono-ini svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.input-icono-fin svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.input-icono > input {
+  width: 100%;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.input-icono--con-ini > input {
+  padding-left: 2.6rem;
+}
+
+.input-icono--con-fin > input {
+  padding-right: 2.5rem;
+}
+
+.input-icono > input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.input-icono > input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+/* ===== Tabla de productos ===== */
+
+.tabla-scroll {
+  overflow-x: auto;
+}
+
+.tabla-lineas {
+  width: 100%;
+  min-width: 44rem;
+  border-collapse: collapse;
+}
+
+.tabla-lineas thead th {
+  padding: 0 var(--space-3) var(--space-3);
+  text-align: left;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tabla-lineas tbody td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.tabla-lineas tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.th-num,
+.td-num {
+  text-align: right;
+}
+
+.td-num {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.th-accion,
+.col-accion {
+  width: 3.5rem;
+  text-align: center;
+}
+
+.celda-codigo {
+  min-width: 15rem;
 }
 
 .celda-producto {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  white-space: normal;
   min-width: 10rem;
+  white-space: normal;
+}
+
+.tabla-lineas input {
+  width: 100%;
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.6rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.tabla-lineas input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.tabla-lineas input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-soft);
+}
+
+.celda-codigo .input-icono--con-fin > input {
+  padding-right: 2.4rem;
+}
+
+.input-cantidad {
+  max-width: 5rem;
 }
 
 .nombre-producto {
+  font-size: 0.9rem;
   font-weight: 500;
+  color: var(--color-text);
 }
 
 .texto-tenue {
@@ -25,45 +219,178 @@
 
 .texto-error {
   color: var(--color-error-text);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
 
-.totales {
-  display: grid;
-  grid-template-columns: max-content max-content;
-  gap: var(--space-1) var(--space-4);
+.btn-eliminar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: none;
+  border-radius: 0.6rem;
+  background: var(--color-error-bg);
+  color: var(--color-danger);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
-.totales dt {
+.btn-eliminar svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.btn-eliminar:hover:not(:disabled) {
+  background: #ffe4e6;
+  color: var(--color-danger-hover);
+}
+
+.btn-eliminar:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tabla-footer {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.link-agregar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.88rem;
   font-weight: 600;
-  color: var(--color-text-muted);
+  color: var(--color-primary);
+  cursor: pointer;
 }
 
-.totales dd {
+.link-agregar svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.link-agregar:hover {
+  color: var(--color-primary-hover);
+}
+
+/* ===== Tarjeta de totales (previsualización) ===== */
+
+.card-totales {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.totales-icono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--r);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.totales-icono svg {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.totales-lineas {
+  flex: 1;
+  max-width: 30rem;
   margin: 0;
 }
 
-/* Previsualización: se distingue a propósito de los totales confirmados
-   (abajo, en .confirmacion) — es una estimación, no lo que va a quedar
-   guardado. Ver el comentario del componente. */
-.totales--previsualizacion {
-  padding: var(--space-3) var(--space-4);
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius);
-  background: var(--color-bg);
-  max-width: 26rem;
+.totales-fila {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 0.35rem 0;
 }
 
+.totales-fila dt {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.totales-fila dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.totales-fila--destacada {
+  margin-top: 0.35rem;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.totales-fila--destacada dt {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.totales-fila--destacada dd {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--color-primary);
+}
+
+/* ===== Barra de acciones ===== */
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* ===== Confirmación (resultado real de ms-ventas) ===== */
+
 .confirmacion {
-  margin-top: var(--space-5);
+  margin-top: var(--space-2);
   border-color: var(--color-success-border);
   background: var(--color-success-bg);
 }
 
 .confirmacion h3 {
+  margin-top: 0;
   color: var(--color-success-text);
 }
 
-.confirmacion .totales {
+.confirmacion .table-wrap {
   margin-top: var(--space-4);
+}
+
+.tot-confirmados {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  gap: var(--space-1) var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.tot-confirmados dt {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.tot-confirmados dd {
+  margin: 0;
 }

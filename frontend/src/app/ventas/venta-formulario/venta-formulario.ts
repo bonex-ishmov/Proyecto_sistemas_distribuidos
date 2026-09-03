@@ -77,7 +77,9 @@ export class VentaFormulario {
   private nuevaLinea(): FilaVenta {
     const grupo = this.fb.nonNullable.group({
       codigoProducto: this.fb.nonNullable.control(''),
-      cantidad: this.fb.nonNullable.control(''),
+      // Arranca en 1 (como la maqueta): así el subtotal aparece apenas se
+      // resuelve el producto, sin obligar a teclear la cantidad.
+      cantidad: this.fb.nonNullable.control('1'),
     });
 
     const fila: FilaVenta = {
@@ -85,7 +87,7 @@ export class VentaFormulario {
       producto: signal(null),
       buscandoProducto: signal(false),
       errorProducto: signal(null),
-      cantidadNumero: signal(null),
+      cantidadNumero: signal<number | null>(1),
       suscripciones: new Subscription(),
     };
 

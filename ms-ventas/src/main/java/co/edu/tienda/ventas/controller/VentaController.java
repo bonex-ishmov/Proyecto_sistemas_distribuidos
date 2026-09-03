@@ -1,6 +1,7 @@
 package co.edu.tienda.ventas.controller;
 
 import co.edu.tienda.ventas.dto.RegistrarVentaRequest;
+import co.edu.tienda.ventas.dto.ResumenVentasResponse;
 import co.edu.tienda.ventas.dto.TotalPorClienteResponse;
 import co.edu.tienda.ventas.dto.VentaResponse;
 import co.edu.tienda.ventas.exception.ReglaNegocioException;
@@ -50,6 +51,15 @@ public class VentaController {
     @GetMapping("/total-por-cliente")
     public ResponseEntity<List<TotalPorClienteResponse>> totalPorCliente() {
         return ResponseEntity.ok(ventaService.totalPorCliente());
+    }
+
+    /**
+     * Resumen para el dashboard de inicio: ventas de hoy y del mes en curso.
+     * Ruta literal, va antes que /{codigo}. Lo consume ms-reportes.
+     */
+    @GetMapping("/resumen")
+    public ResponseEntity<ResumenVentasResponse> resumen() {
+        return ResponseEntity.ok(ventaService.resumen());
     }
 
     @GetMapping("/{codigo}")

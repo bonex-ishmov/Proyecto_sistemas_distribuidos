@@ -1,8 +1,11 @@
 package co.edu.tienda.reportes.service;
 
 import co.edu.tienda.reportes.dto.ClienteResponse;
+import co.edu.tienda.reportes.dto.ResumenDashboardResponse;
+import co.edu.tienda.reportes.dto.ResumenVentas;
 import co.edu.tienda.reportes.dto.UsuarioResponse;
 import co.edu.tienda.reportes.dto.VentasPorClienteResponse;
+import co.edu.tienda.reportes.gateway.CatalogoGateway;
 import co.edu.tienda.reportes.gateway.ClientesGateway;
 import co.edu.tienda.reportes.gateway.IdentidadGateway;
 import co.edu.tienda.reportes.gateway.TotalVentasCliente;
@@ -38,6 +41,7 @@ class ReporteServiceTest {
     private IdentidadGateway identidadGateway;
     private ClientesGateway clientesGateway;
     private VentasGateway ventasGateway;
+    private CatalogoGateway catalogoGateway;
     private ReporteService reporteService;
 
     @BeforeEach
@@ -45,8 +49,10 @@ class ReporteServiceTest {
         identidadGateway = mock(IdentidadGateway.class);
         clientesGateway = mock(ClientesGateway.class);
         ventasGateway = mock(VentasGateway.class);
+        catalogoGateway = mock(CatalogoGateway.class);
         reporteService = new ReporteService(
-                identidadGateway, clientesGateway, ventasGateway, CEDULA_USUARIO_SISTEMA);
+                identidadGateway, clientesGateway, ventasGateway, catalogoGateway,
+                CEDULA_USUARIO_SISTEMA);
     }
 
     private static UsuarioResponse usuario(long cedula, String nombreUsuario, boolean activo) {
@@ -190,5 +196,75 @@ class ReporteServiceTest {
         assertEquals(999L, resultado.get(0).cedulaCliente());
         assertEquals("(cliente eliminado)", resultado.get(0).nombreCliente());
         assertEquals(new BigDecimal("4200.00"), resultado.get(0).totalConIva());
+    }
+
+    // ---------- resumenDashboard ----------
+
+    private static ResumenVentas resumenVentas() {
+        return new ResumenVentas(
+                new ResumenVentas.Periodo(3L, new BigDecimal("154900.00")),
+                new ResumenVentas.Periodo(27L, new BigDecimal("1875300.00")));
+    }
+
+    @Test
+    @DisplayName("resumenDashboard: junta los cinco datos en una sola respuesta")
+    void resumenDashboardAgregaTodo() {
+        when(catalogoGateway.contarProductos()).thenReturn(42L);
+        when(catalogoGateway.contarProveedores()).thenReturn(5L);
+        when(clientesGateway.listarClientes()).thenReturn(List.of(
+                cliente(222L, "Ana Ruiz"), cliente(333L, "Beto Diaz")));
+        when(identidadGateway.listarUsuarios()).thenReturn(List.of(
+                usuario(1L, "admininicial", false),
+                usuario(50L, "cajera01", true),
+                usuario(51L, "cajera02", true)));
+        ResumenVentas ventas = resumenVentas();
+        when(ventasGateway.resumen()).thenReturn(ventas);
+
+        ResumenDashboardResponse resumen = reporteService.resumenDashboard();
+
+        assertEquals(42L, resumen.productos());
+        assertEquals(2L, resumen.clientes());
+        assertEquals(5L, resumen.proveedores());
+        assertEquals(2L, resumen.usuariosActivos());
+        assertSame(ventas, resumen.ventas());
+    }
+
+    @Test
+    @DisplayName("resumenDashboard: usuariosActivos cuenta solo activo=true y NUNCA al usuario de sistema")
+    void resumenDashboardUsuariosActivosExcluyeSistemaYDesactivados() {
+        when(catalogoGateway.contarProductos()).thenReturn(0L);
+        when(catalogoGateway.contarProveedores()).thenReturn(0L);
+        when(clientesGateway.listarClientes()).thenReturn(List.of());
+        when(ventasGateway.resumen()).thenReturn(resumenVentas());
+        when(identidadGateway.listarUsuarios()).thenReturn(List.of(
+                usuario(1L, "admininicial", false),    // desactivado -> no cuenta
+                usuario(2L, "ventas-sistema", true),   // usuario de sistema -> no cuenta
+                usuario(50L, "cajera01", true),        // cuenta
+                usuario(51L, "cajera02", false)));     // desactivado -> no cuenta
+
+        ResumenDashboardResponse resumen = reporteService.resumenDashboard();
+
+        assertEquals(1L, resumen.usuariosActivos());
+    }
+
+    @Test
+    @DisplayName("resumenDashboard: sin datos en ningun servicio -> ceros")
+    void resumenDashboardVacio() {
+        when(catalogoGateway.contarProductos()).thenReturn(0L);
+        when(catalogoGateway.contarProveedores()).thenReturn(0L);
+        when(clientesGateway.listarClientes()).thenReturn(List.of());
+        when(identidadGateway.listarUsuarios()).thenReturn(List.of());
+        ResumenVentas sinVentas = new ResumenVentas(
+                new ResumenVentas.Periodo(0L, new BigDecimal("0.00")),
+                new ResumenVentas.Periodo(0L, new BigDecimal("0.00")));
+        when(ventasGateway.resumen()).thenReturn(sinVentas);
+
+        ResumenDashboardResponse resumen = reporteService.resumenDashboard();
+
+        assertEquals(0L, resumen.productos());
+        assertEquals(0L, resumen.clientes());
+        assertEquals(0L, resumen.proveedores());
+        assertEquals(0L, resumen.usuariosActivos());
+        assertEquals(0L, resumen.ventas().hoy().cantidad());
     }
 }

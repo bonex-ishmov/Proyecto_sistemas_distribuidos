@@ -1,5 +1,6 @@
 package co.edu.tienda.reportes.gateway;
 
+import co.edu.tienda.reportes.dto.ResumenVentas;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
@@ -24,6 +25,7 @@ public class VentasHttpAdapter implements VentasGateway {
     private final RestClient rest;
     private final AutenticadorServicio autenticador;
     private final String urlTotalPorCliente;
+    private final String urlResumen;
 
     public VentasHttpAdapter(RestClient serviciosRestClient,
                              AutenticadorServicio autenticador,
@@ -31,6 +33,7 @@ public class VentasHttpAdapter implements VentasGateway {
         this.rest = serviciosRestClient;
         this.autenticador = autenticador;
         this.urlTotalPorCliente = ventasBaseUrl + "/api/ventas/total-por-cliente";
+        this.urlResumen = ventasBaseUrl + "/api/ventas/resumen";
     }
 
     @Override
@@ -43,5 +46,15 @@ public class VentasHttpAdapter implements VentasGateway {
                         .body(LISTA));
 
         return respuesta == null ? List.of() : respuesta;
+    }
+
+    @Override
+    public ResumenVentas resumen() {
+        return autenticador.ejecutarAutenticado(
+                "ms-ventas", token -> rest.get()
+                        .uri(urlResumen)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .retrieve()
+                        .body(ResumenVentas.class));
     }
 }

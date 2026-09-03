@@ -1,6 +1,7 @@
 package co.edu.tienda.reportes.controller;
 
 import co.edu.tienda.reportes.dto.ClienteResponse;
+import co.edu.tienda.reportes.dto.ResumenDashboardResponse;
 import co.edu.tienda.reportes.dto.UsuarioResponse;
 import co.edu.tienda.reportes.dto.VentasPorClienteResponse;
 import co.edu.tienda.reportes.service.ReporteService;
@@ -45,5 +46,15 @@ public class ReporteController {
     @GetMapping("/ventas-por-cliente")
     public ResponseEntity<List<VentasPorClienteResponse>> ventasPorCliente() {
         return ResponseEntity.ok(reporteService.ventasPorCliente());
+    }
+
+    /**
+     * Resumen del dashboard de inicio: conteos de productos, clientes,
+     * proveedores y usuarios activos, más las ventas de hoy y del mes en curso.
+     * El frontend hace UNA sola petición a este endpoint.
+     */
+    @GetMapping("/resumen")
+    public ResponseEntity<ResumenDashboardResponse> resumen() {
+        return ResponseEntity.ok(reporteService.resumenDashboard());
     }
 }
