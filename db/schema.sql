@@ -1,12 +1,13 @@
 -- =====================================================================
 -- db/schema.sql  --  Tienda Generica
--- Servidor: MySQL 9.4 (Railway, compartido por el equipo)
+-- Servidor: MySQL 8.4 local, contenedor tienda-mysql (docker-compose.yml)
 -- Crea los 4 esquemas y todas sus tablas. Idempotente (IF NOT EXISTS):
 -- se puede volver a ejecutar sin efecto si ya existen.
 -- Derivado de las entidades JPA (@Entity) de los cuatro modulos.
 -- Los servicios corren con spring.jpa.hibernate.ddl-auto=validate:
 -- este script es la UNICA fuente del esquema.
---   Orden de ejecucion:  1) db/schema.sql   2) db/seed.sql
+--   Orden de ejecucion:  1) db/schema.sql   2) db/seed.sql   3) db/usuario-app.sql
+--   (docker-compose los corre solos la primera vez que arranca el contenedor)
 -- =====================================================================
 
 

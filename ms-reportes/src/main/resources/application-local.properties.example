@@ -15,7 +15,7 @@
 #  módulo, no lo retecleés.
 # ==========================================================================
 
-app.jwt.secret=PON_AQUI_EL_SECRETO
+app.jwt.secret=PON_AQUI_EL_SECRETO_DE_64_CARACTERES
 
 # ---------- Usuario de sistema (autenticación servicio-a-servicio) ----------
 # ms-reportes usa EL MISMO usuario de sistema que ms-ventas ('ventas-sistema',

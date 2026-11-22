@@ -1,0 +1,7 @@
+# Lo que NO se manda a docker build (node_modules se instala dentro con npm ci).
+node_modules/
+dist/
+.angular/
+.vscode/
+.idea/
+.git

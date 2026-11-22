@@ -2,3 +2,20 @@
 # Se versiona solo la plantilla application-local.properties.example
 **/src/main/resources/application-local.properties
 !**/src/main/resources/application-local.properties.example
+
+# Claves del docker-compose local (MySQL) — NUNCA versionar.
+# Se versiona solo la plantilla .env.example
+.env
+!.env.example
+
+# Salida de compilacion de Maven. ms-reportes y ms-ventas no tienen
+# .gitignore propio, asi que se cubre desde la raiz para los cinco modulos.
+**/target/
+
+# Terraform (infra/oci): estado, plugins y valores propios de la cuenta.
+# El .terraform.lock.hcl SÍ se versiona (fija las versiones del proveedor).
+infra/**/.terraform/
+infra/**/*.tfstate
+infra/**/*.tfstate.*
+infra/**/*.tfplan
+infra/**/terraform.tfvars

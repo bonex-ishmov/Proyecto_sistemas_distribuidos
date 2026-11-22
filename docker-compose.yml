@@ -1,0 +1,332 @@
+# =====================================================================
+# docker-compose.yml  --  Tienda Generica (entorno local)
+# Arquitectura del "Grafico explicativo segundo corte": cada microservicio
+# con 2 réplicas detrás de un NGINX balanceador, y 2 frontends detrás de un
+# NGINX de entrada (puerto 80). Extendido con ms-identidad y ms-reportes.
+#
+#   navegador -> nginx-front -> front-1|2 (node servidor.mjs) -> nginx-<servicio> -> ms-<servicio>-1|2 -> mysql
+#
+# Uso (desde la raiz del repo):
+#   cp .env.example .env              # y poner los valores
+#   docker compose up -d --build      # todo
+#   docker compose up -d mysql        # solo la base (para correr con ./mvnw)
+#
+# Los secretos se leen de .env (git-ignorado). Nada secreto vive en este archivo.
+#
+# Red tienda-red (172.28.0.0/24). El .1 es el host (gateway). Un bloque de 10
+# direcciones por servicio: .X0 = su NGINX, .X1 / .X2 = sus réplicas.
+#   identidad .10-.12 | clientes .20-.22 | catalogo .30-.32 | ventas .40-.42
+#   reportes  .50-.52 | frontend .60-.62 | mysql .100
+# Todos los puertos publicados solo en 127.0.0.1 (no expuestos a la red local).
+# =====================================================================
+
+# ---------- Bloques comunes (anclas YAML, se reutilizan abajo) ----------
+
+# Lo que comparten las 10 réplicas Spring Boot.
+x-spring: &spring
+  restart: on-failure
+  healthcheck:
+    # El puerto 8080 aceptando conexiones = la app terminó de arrancar.
+    # (bash /dev/tcp porque la imagen no trae curl.)
+    test: ["CMD", "bash", "-c", "</dev/tcp/127.0.0.1/8080"]
+    interval: 5s
+    timeout: 3s
+    retries: 30
+
+# Variables de entorno de las 10 réplicas. Spring las toma por encima de
+# application.properties (APP_JWT_SECRET -> app.jwt.secret, etc.).
+x-spring-env: &spring-env
+  SERVER_PORT: "8080"
+  # Hora de Colombia en el JVM (la imagen trae UTC). ms-ventas guarda fecha_venta
+  # con la hora del JVM y calcula "ventas de hoy / del mes" en America/Bogota: en
+  # UTC una venta de las 7 p. m. quedaba con fecha del día siguiente.
+  TZ: America/Bogota
+  APP_JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
+  # El navegador entra por el NGINX del frontend (80) o directo a un front (9000/9001).
+  CORS_ALLOWED_ORIGINS: http://localhost,http://localhost:9000,http://localhost:9001
+
+# Las 4 que tienen base de datos: usuario y clave (la URL va en cada servicio).
+x-db-env: &db-env
+  SPRING_DATASOURCE_USERNAME: tienda
+  SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:?falta MYSQL_PASSWORD en .env}
+
+# ms-ventas y ms-reportes llaman a otros servicios SIEMPRE por su balanceador.
+x-clientes-http-env: &clientes-http-env
+  MS_IDENTIDAD_URL: http://nginx-identidad
+  MS_CLIENTES_URL: http://nginx-clientes
+  MS_CATALOGO_URL: http://nginx-catalogo
+  MS_VENTAS_URL: http://nginx-ventas
+  MS_IDENTIDAD_USUARIO_SISTEMA: ${USUARIO_SISTEMA:?falta USUARIO_SISTEMA en .env}
+  MS_IDENTIDAD_PASSWORD_SISTEMA: ${USUARIO_SISTEMA_PASSWORD:?falta USUARIO_SISTEMA_PASSWORD en .env}
+
+# Los 6 NGINX: misma imagen y misma plantilla; solo cambian REPLICA_1/2.
+# REPLICA_1/2 van por IP fija (la que cada réplica tiene en tienda-red), NO por
+# nombre de contenedor: NGINX resuelve los nombres una sola vez, al arrancar, y
+# el DNS de Docker no resuelve un contenedor apagado. Con nombres, si un NGINX
+# (re)arrancaba con una réplica caída, fallaba con "host not found in upstream"
+# y tumbaba el servicio entero (502) aunque la otra réplica estuviera sana. Con
+# la IP arranca igual y simplemente marca como caída la réplica que no responde.
+x-nginx: &nginx
+  image: nginx:1.27-alpine
+  restart: unless-stopped
+  volumes:
+    - ./docker/nginx/balanceo.conf.template:/etc/nginx/templates/default.conf.template:ro
+
+services:
+
+  # ============================ Base de datos ============================
+  mysql:
+    image: mysql:8.4
+    container_name: tienda-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?falta MYSQL_ROOT_PASSWORD en .env}
+      # Usuario de la aplicacion. La imagen lo crea sin permisos (no hay
+      # MYSQL_DATABASE); db/usuario-app.sql le da acceso a los 4 esquemas.
+      MYSQL_USER: tienda
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?falta MYSQL_PASSWORD en .env}
+    ports:
+      # 3307 en el host porque el MySQL instalado en la maquina ya usa 3306.
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - mysql-datos:/var/lib/mysql
+      # La imagen ejecuta estos scripts en orden alfabetico, y SOLO la primera
+      # vez (cuando el volumen esta vacio). Para recrear la base desde cero:
+      #   docker compose down -v && docker compose up -d mysql
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./db/usuario-app.sql:/docker-entrypoint-initdb.d/03-usuario-app.sql:ro
+    healthcheck:
+      # Por TCP (127.0.0.1), no por socket: mientras corre los scripts de
+      # initdb, la imagen levanta un MySQL temporal SIN red que responde al
+      # socket; por TCP solo responde el servidor definitivo, ya inicializado.
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.100 }
+
+  # ============================ ms-identidad =============================
+  ms-identidad-1:
+    <<: *spring
+    build: ./ms-identidad
+    image: tienda/ms-identidad
+    container_name: ms-identidad-1
+    environment: &identidad-env
+      <<: [*spring-env, *db-env]
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/db_identidad?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      APP_USUARIO_SISTEMA_USUARIO: ${USUARIO_SISTEMA:?falta USUARIO_SISTEMA en .env}
+      APP_USUARIO_SISTEMA_PASSWORD: ${USUARIO_SISTEMA_PASSWORD:?falta USUARIO_SISTEMA_PASSWORD en .env}
+    ports: ["127.0.0.1:8086:8080"]
+    depends_on:
+      mysql: { condition: service_healthy }
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.11 }
+
+  ms-identidad-2:
+    <<: *spring
+    build: ./ms-identidad
+    image: tienda/ms-identidad
+    container_name: ms-identidad-2
+    environment: *identidad-env
+    ports: ["127.0.0.1:8087:8080"]
+    depends_on:
+      mysql: { condition: service_healthy }
+      # Arranca después de la réplica 1: las dos siembran admininicial y el
+      # usuario de sistema al iniciar; con la base vacía, si lo hicieran a la
+      # vez la segunda chocaría con la clave duplicada. (Y si aun así pasara,
+      # restart: on-failure la reinicia y en el segundo intento ya existen.)
+      ms-identidad-1: { condition: service_healthy }
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.12 }
+
+  nginx-identidad:
+    <<: *nginx
+    container_name: nginx-identidad
+    environment: { REPLICA_1: "172.28.0.11:8080", REPLICA_2: "172.28.0.12:8080" }  # ms-identidad-1 / -2
+    ports: ["127.0.0.1:8093:80"]
+    depends_on: [ms-identidad-1, ms-identidad-2]
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.10 }
+
+  # ============================ ms-clientes ==============================
+  ms-clientes-1:
+    <<: *spring
+    build: ./ms-clientes
+    image: tienda/ms-clientes
+    container_name: ms-clientes-1
+    environment: &clientes-env
+      <<: [*spring-env, *db-env]
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/db_clientes?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    ports: ["127.0.0.1:8082:8080"]
+    depends_on:
+      mysql: { condition: service_healthy }
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.21 }
+
+  ms-clientes-2:
+    <<: *spring
+    build: ./ms-clientes
+    image: tienda/ms-clientes
+    container_name: ms-clientes-2
+    environment: *clientes-env
+    ports: ["127.0.0.1:8083:8080"]
+    depends_on:
+      mysql: { condition: service_healthy }
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.22 }
+
+  nginx-clientes:
+    <<: *nginx
+    container_name: nginx-clientes
+    environment: { REPLICA_1: "172.28.0.21:8080", REPLICA_2: "172.28.0.22:8080" }  # ms-clientes-1 / -2
+    ports: ["127.0.0.1:8091:80"]
+    depends_on: [ms-clientes-1, ms-clientes-2]
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.20 }
+
+  # ===================== ms-catalogo ("productos") =======================
+  ms-catalogo-1:
+    <<: *spring
+    build: ./ms-catalogo
+    image: tienda/ms-catalogo
+    container_name: ms-catalogo-1
+    environment: &catalogo-env
+      <<: [*spring-env, *db-env]
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/db_catalogo?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    ports: ["127.0.0.1:8084:8080"]
+    depends_on:
+      mysql: { condition: service_healthy }
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.31 }
+
+  ms-catalogo-2:
+    <<: *spring
+    build: ./ms-catalogo
+    image: tienda/ms-catalogo
+    container_name: ms-catalogo-2
+    environment: *catalogo-env
+    ports: ["127.0.0.1:8085:8080"]
+    depends_on:
+      mysql: { condition: service_healthy }
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.32 }
+
+  nginx-catalogo:
+    <<: *nginx
+    container_name: nginx-catalogo
+    environment: { REPLICA_1: "172.28.0.31:8080", REPLICA_2: "172.28.0.32:8080" }  # ms-catalogo-1 / -2
+    ports: ["127.0.0.1:8092:80"]
+    depends_on: [ms-catalogo-1, ms-catalogo-2]
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.30 }
+
+  # ============================ ms-ventas ================================
+  ms-ventas-1:
+    <<: *spring
+    build: ./ms-ventas
+    image: tienda/ms-ventas
+    container_name: ms-ventas-1
+    environment: &ventas-env
+      <<: [*spring-env, *db-env, *clientes-http-env]
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/db_ventas?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      mysql: { condition: service_healthy }
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.41 }
+
+  ms-ventas-2:
+    <<: *spring
+    build: ./ms-ventas
+    image: tienda/ms-ventas
+    container_name: ms-ventas-2
+    environment: *ventas-env
+    ports: ["127.0.0.1:8081:8080"]
+    depends_on:
+      mysql: { condition: service_healthy }
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.42 }
+
+  nginx-ventas:
+    <<: *nginx
+    container_name: nginx-ventas
+    environment: { REPLICA_1: "172.28.0.41:8080", REPLICA_2: "172.28.0.42:8080" }  # ms-ventas-1 / -2
+    ports: ["127.0.0.1:8090:80"]
+    depends_on: [ms-ventas-1, ms-ventas-2]
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.40 }
+
+  # ===================== ms-reportes (sin base de datos) =================
+  ms-reportes-1:
+    <<: *spring
+    build: ./ms-reportes
+    image: tienda/ms-reportes
+    container_name: ms-reportes-1
+    environment: &reportes-env
+      <<: [*spring-env, *clientes-http-env]
+    ports: ["127.0.0.1:8088:8080"]
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.51 }
+
+  ms-reportes-2:
+    <<: *spring
+    build: ./ms-reportes
+    image: tienda/ms-reportes
+    container_name: ms-reportes-2
+    environment: *reportes-env
+    ports: ["127.0.0.1:8089:8080"]
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.52 }
+
+  nginx-reportes:
+    <<: *nginx
+    container_name: nginx-reportes
+    environment: { REPLICA_1: "172.28.0.51:8080", REPLICA_2: "172.28.0.52:8080" }  # ms-reportes-1 / -2
+    ports: ["127.0.0.1:8094:80"]
+    depends_on: [ms-reportes-1, ms-reportes-2]
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.50 }
+
+  # ============================ Frontend =================================
+  # "FR NodeJS" del gráfico: frontend/servidor.mjs en 4200 (sirve el build y reenvía /api/*).
+  front-1:
+    build: ./frontend
+    image: tienda/frontend
+    container_name: front-1
+    restart: on-failure
+    ports: ["127.0.0.1:9000:4200"]
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.61 }
+
+  front-2:
+    build: ./frontend
+    image: tienda/frontend
+    container_name: front-2
+    restart: on-failure
+    ports: ["127.0.0.1:9001:4200"]
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.62 }
+
+  # Entrada del navegador: http://localhost
+  nginx-front:
+    <<: *nginx
+    container_name: nginx-front
+    environment: { REPLICA_1: "172.28.0.61:4200", REPLICA_2: "172.28.0.62:4200" }  # front-1 / -2
+    ports: ["127.0.0.1:80:80"]
+    depends_on: [front-1, front-2]
+    networks:
+      tienda-red: { ipv4_address: 172.28.0.60 }
+
+networks:
+  tienda-red:
+    # Nombre fijo (sin el prefijo del proyecto que compose agrega por defecto),
+    # para poder hacer: docker network inspect tienda-red
+    name: tienda-red
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+          gateway: 172.28.0.1
+
+volumes:
+  mysql-datos:

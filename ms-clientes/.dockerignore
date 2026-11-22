@@ -1,0 +1,7 @@
+# Lo que NO se manda a docker build.
+target/
+# Credenciales locales: nunca dentro de la imagen.
+src/main/resources/application-local.properties
+.idea/
+*.iml
+.git

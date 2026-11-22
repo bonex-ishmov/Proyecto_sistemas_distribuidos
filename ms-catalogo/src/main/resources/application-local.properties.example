@@ -4,11 +4,13 @@
 # application.properties lo importa con spring.config.import, así que se lee solo
 # (no hace falta activar ningún perfil). Sin este archivo el servicio NO arranca.
 #
-# useSSL=true es OBLIGATORIO: la conexión sale a un servidor remoto por internet
-# abierto; sin SSL la contraseña y los datos viajan en texto plano.
+# La base corre en local, en el contenedor tienda-mysql (docker-compose.yml de la
+# raíz, puerto 3307 del host). useSSL=false porque la conexión no sale de la
+# máquina; si la base vuelve a un servidor remoto, usar useSSL=true.
+# El usuario es 'tienda' y su clave es MYSQL_PASSWORD del archivo .env de la raíz.
 # app.jwt.secret DEBE ser idéntico en los tres módulos.
 
-spring.datasource.url=jdbc:mysql://altaria.proxy.rlwy.net:40105/db_catalogo?useSSL=true&serverTimezone=UTC&allowPublicKeyRetrieval=true
-spring.datasource.username=root
-spring.datasource.password=pkSRaOvlsOVgkpVBUEWfjIpawTlMNTpx
-app.jwt.secret=TiendaGenerica2026ClaveJwtCompartidaEntreLosTresMicroservicios
+spring.datasource.url=jdbc:mysql://localhost:3307/db_catalogo?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+spring.datasource.username=tienda
+spring.datasource.password=PON_AQUI_MYSQL_PASSWORD_DEL_ENV
+app.jwt.secret=PON_AQUI_EL_SECRETO_DE_64_CARACTERES
