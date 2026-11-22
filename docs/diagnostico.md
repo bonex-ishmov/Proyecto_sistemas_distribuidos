@@ -303,3 +303,154 @@ Actualización 2026-09-01 (Incremento 0 del frontend — cimientos Angular):
   pospone la extracción a un módulo compartido por la misma razón arquitectónica y
   de alcance, y con el mismo disparador para revisarlo (un sexto módulo, o tener
   que tocar las 5 copias a mano por un cambio real de política CORS).
+
+---
+
+Actualización 2026-11-19 (prueba integral del despliegue Docker en local):
+
+Estado: los cinco microservicios, el frontend Angular (las 7 pantallas + dashboard)
+y el despliegue distribuido de `docker-compose.yml` (19 contenedores: 2 réplicas
+por servicio y por front, cada par detrás de su NGINX) están construidos. Varias
+notas de arriba quedaron superadas: el esquema ya no lo crea Hibernate
+(`ddl-auto=validate` + `db/schema.sql`), MySQL corre en un contenedor local
+(Railway se eliminó y sus credenciales se rotaron), los secretos viven en `.env` /
+`application-local.properties` (no versionados) y el README documenta el arranque.
+
+Qué se probó y resultado:
+
+- `./mvnw test` en los 5 módulos: 88 tests, 0 fallos.
+- `docker compose build` + arranque en frío con volumen vacío
+  (`docker compose -p tienda-prueba up -d --wait`): 19 contenedores sanos en ~35 s,
+  sin reinicios. Los scripts de `db/` crearon 4 esquemas / 6 tablas, los 5
+  proveedores y los permisos de `tienda` (solo SELECT/INSERT/UPDATE/DELETE).
+  `ms-identidad` sembró `admininicial` y el usuario de sistema sin chocar entre réplicas.
+- Flujo funcional completo por `http://localhost` (42 comprobaciones): login y 401,
+  desactivación de `admininicial`, CRUD con 400/404/409, CSV inválido rechazado y
+  CSV válido (18 productos), venta con IVA 19 % sobre `precio_venta` y
+  `cedula_usuario` tomada del JWT, los 4 reportes, y el usuario de sistema excluido
+  del reporte de usuarios. Todo correcto.
+- Balanceo: los 5 NGINX de servicio reparten 3/3 entre sus réplicas; nginx-front
+  alterna entre front-1 y front-2.
+- Tolerancia a fallos: con la réplica 1 de los 5 servicios y `front-1` apagadas,
+  todo siguió respondiendo 200 (incluido registrar una venta); al encenderlas se
+  reincorporaron.
+- Prueba de humo con el volumen real (datos existentes): todos los endpoints 200.
+
+Problemas encontrados (NO corregidos, pendientes de decisión):
+
+15. Un NGINX que (re)arranca mientras una de sus réplicas está apagada no arranca.
+    `balanceo.conf.template` nombra las réplicas por nombre de contenedor; Docker
+    solo resuelve contenedores encendidos y NGINX resuelve al iniciar, así que
+    falla con `host not found in upstream` y entra en un ciclo de reinicios. El
+    servicio entero responde 502 aunque la otra réplica esté sana (reproducido con
+    `docker stop ms-clientes-1 && docker restart nginx-clientes`). Arreglo posible:
+    usar en `REPLICA_1/2` las IP fijas que ya asigna el compose (p. ej.
+    `172.28.0.21:8080`); con una IP NGINX arranca y marca la réplica caída como fallida.
+16. Zona horaria en Docker. `VentaService` guarda `fecha_venta` con
+    `LocalDateTime.now()` (zona del JVM) y calcula "hoy" / "mes" del resumen en
+    `America/Bogota`; su comentario asume que el JVM corre en Bogotá. En los
+    contenedores el JVM corre en UTC (verificado: venta registrada a las 15:21 de
+    Bogotá quedó con `fecha_venta` 20:21). Consecuencia deducida del código, no
+    observada (la prueba se hizo antes de las 19:00): una venta hecha
+    después de las 19:00 queda con fecha del día siguiente y no cuenta en
+    "ventas de hoy" del dashboard. Arreglo posible: `TZ=America/Bogota` en las
+    variables comunes del compose. Con `./mvnw` en el equipo no ocurre.
+17. Aviso menor en el arranque de `ms-ventas` (HV000271): `@Valid` sobre
+    `List<LineaVentaRequest>` está deprecado en Hibernate Validator; lo recomendado
+    es `List<@Valid LineaVentaRequest>`. Hoy funciona igual (la validación de
+    cantidad 0 → 400 se comprobó).
+
+Resolución (mismo día, 2026-11-19):
+
+- Punto 15 corregido: en `docker-compose.yml` los 6 NGINX reciben `REPLICA_1/2` con
+  la IP fija de cada réplica (p. ej. `172.28.0.21:8080`) en vez del nombre del
+  contenedor. Verificado: con `ms-clientes-1` apagada, `docker restart nginx-clientes`
+  arranca sin reinicios y la app sigue respondiendo 200.
+- Punto 16 corregido: `TZ: America/Bogota` en las variables comunes de las 10
+  réplicas Spring Boot (`x-spring-env`). Verificado: `fecha_venta` queda en hora de
+  Bogotá y la venta cuenta en "ventas de hoy". No hizo falta tocar Java.
+- Punto 17 sin cambios: es un aviso de deprecación, no un fallo.
+- La prueba quedó automatizada en `docker/pruebas/` (`todo.sh`, `e2e.sh` y `fallos.sh`;
+  uso en el README). Corrida completa de `todo.sh` después de los arreglos: 88 tests,
+  arranque en frío en 34 s, 46/46 comprobaciones de e2e y 30/30 de fallos.
+
+---
+
+Actualización 2026-11-21 (despliegue en la nube: Kubernetes en Oracle Cloud):
+
+Objetivo (pedido de la usuaria, no del PDF): mostrar al profesor la tienda corriendo
+en la nube, con Kubernetes gestionando los contenedores, gratis o lo más barato
+posible, e infraestructura creada con Terraform.
+
+Decisiones de la usuaria (registradas también en CLAUDE.md, "Decisiones ya tomadas"):
+- Proveedor: Oracle Cloud (OKE), cuenta Free Tier, sin pasar a Pay As You Go.
+- Los 6 NGINX se reemplazan por Services de Kubernetes (el de entrada, por un Service
+  LoadBalancer). Justificación para el profesor: un Service es un nombre y una IP
+  estables que reparten entre las réplicas listas; Kubernetes saca del reparto y
+  recrea las que mueren, que es lo que NGINX + `restart: on-failure` hacían en Docker.
+- MySQL dentro del clúster (StatefulSet + disco persistente), imágenes públicas en
+  GHCR, secretos en Secrets de Kubernetes.
+- Balanceo visible con la cabecera `X-Atendido-Por-Front` + `kubectl`; 2 nodos, con
+  las réplicas repartidas.
+- Usar el crédito de prueba (USD 300, vence 2026-12-18) para nodos x86 E5.Flex,
+  porque no había capacidad ARM A1 (Always Free) en us-sanjose-1; poder apagar y
+  encender los nodos para no gastar crédito.
+
+Qué se construyó:
+- Imágenes multi-arquitectura (x86 + ARM) sin emulación: la etapa de compilación de
+  los 6 Dockerfile corre en `$BUILDPLATFORM`. `docker/publicar-imagenes.sh` las sube
+  a GHCR (`tienda-<módulo>:1.0.0`).
+- `frontend/servidor.mjs`: destinos por variables `DESTINO_*` (el compose sigue
+  igual), cabecera `X-Atendido-Por-Front`, y una conexión por petición (`agent:
+  false`) para que el Service reparta por petición.
+- `infra/oci/` (Terraform, 18 recursos): VCN con subred pública para el balanceador
+  (solo :80), subred pública para la API de Kubernetes (solo la IP de la usuaria),
+  subred privada para los nodos (salida por NAT); clúster OKE Basic; grupo de 2 nodos
+  E5.Flex 1 OCPU/8 GB; alerta de presupuesto. Scripts `nodos.sh` (interruptor) y
+  `buscar-capacidad-a1.sh`.
+- `k8s/` (manifiestos + `desplegar.sh` + `fallos.sh`); `docker/pruebas/e2e.sh` acepta
+  `MODO=k8s`.
+
+Verificación (2026-11-19):
+- `terraform apply` sin errores; 2 nodos `Ready`; un pod de prueba bajó una imagen de
+  GHCR por el NAT; `nodos.sh apagar` y `encender` (≈ 2 min 40 s cada uno) sin que
+  Terraform marque diferencias.
+- `e2e.sh` en modo k8s contra la IP pública: 53/53 (las 46 funcionales de Docker + 7
+  de balanceo: 2 pods de front atendiendo, cada Service con 2 pods listos en nodos
+  distintos).
+- `k8s/fallos.sh`: 17/17. Con un pod de cada servicio borrado a la vez, 43 de 45
+  peticiones respondieron y Kubernetes recreó los 6 pods; borrando `mysql-0`, volvió
+  con el mismo disco y los datos intactos.
+- 2026-11-21: nodos apagados (0) al terminar la documentación.
+
+Problemas encontrados en el despliegue y corregidos:
+18. Los nodos de OKE usan CRI-O, que rechaza nombres de imagen cortos (`mysql:8.4` →
+    `ImageInspectError`). Se usan nombres completos (`docker.io/library/...`). El pod
+    del StatefulSet hubo que borrarlo a mano: un StatefulSet no reemplaza un pod que
+    nunca estuvo listo.
+19. Con `whenUnsatisfiable: ScheduleAnyway` las dos réplicas de un servicio llegaron
+    a quedar en el mismo nodo (el reparto contaba también los pods de la versión
+    anterior). Se pasó a `DoNotSchedule` + `matchLabelKeys: [pod-template-hash]` +
+    `nodeTaintsPolicy: Honor`.
+
+Pendientes y riesgos (abiertos):
+20. Vencimiento del crédito (2026-12-18): Oracle detendrá los nodos E5. Para seguir
+    después hay que migrar a A1 (gratis) cuando haya capacidad.
+21. 2 de 45 peticiones fallaron al borrar pods: las que estaban en curso en el pod
+    que murió. Mejora posible (no aplicada): una pausa `preStop` de ~5 s para que el
+    Service deje de mandarle tráfico antes de apagarlo.
+22. La base de la nube tiene el usuario de prueba `ana`/`ana12345` (creado por
+    `e2e.sh`, clave publicada en el repo) y `admininicial` desactivado. Hay que crear
+    el usuario real de la demo y eliminar `ana`.
+23. La IP pública de la usuaria es dinámica: cuando cambia, `kubectl` deja de
+    conectar hasta actualizar `mi_ip` y hacer `terraform apply` (pasó el 2026-11-21).
+24. La tienda en la nube va por HTTP sin TLS (no hay dominio); el JWT y las claves
+    viajan sin cifrar entre el navegador y el balanceador. Aceptable para una demo
+    académica, no para datos reales.
+25. El Secret se crea desde el mismo `.env` que usa Docker en local: el secreto JWT y
+    las claves de MySQL son los mismos en los dos entornos. `k8s/desplegar.sh` acepta
+    otro archivo (`k8s/desplegar.sh .env.nube`) si se quieren separar.
+26. MySQL tiene una sola réplica: mientras su pod se recrea (y, si cambia de nodo,
+    mientras el disco se desconecta y se vuelve a conectar) la tienda no puede leer ni
+    escribir datos. En `k8s/fallos.sh` volvió solo con los datos intactos; la duración
+    del corte no se midió.

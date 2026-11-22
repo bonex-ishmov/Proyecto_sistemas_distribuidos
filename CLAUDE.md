@@ -31,26 +31,121 @@ Run from a module directory (e.g. `ms-identidad/`). Use `./mvnw.cmd` on Windows,
 ./mvnw.cmd test -Dtest=UsuarioServiceTest#crearUsuario   # one test method
 ```
 
-Tests are plain JUnit 5 + Mockito unit tests on the `service` layer — they mock repositories
-and do **not** load a Spring context, so they run fast and need no database.
+None of the tests need MySQL or `application-local.properties`. Three kinds:
+- `*ServiceTest` — plain JUnit 5 + Mockito unit tests on the `service` layer; they mock
+  repositories/gateways and do **not** load a Spring context. Most tests are these.
+- `Ms*ApplicationTests` — context-load tests with the `test` profile
+  (`src/test/resources/application-test.properties`): H2 in memory in the four modules with a DB;
+  `ms-reportes` has no DB, only fake URLs and credentials.
+- `VentaEndToEndTest`, `ReporteEndToEndTest` — full context; outbound HTTP to other services is
+  intercepted by `MockRestServiceServer`, so nothing leaves the JVM.
+
+Whole-deployment verification lives in `docker/pruebas/` (Docker; `e2e.sh` also runs against
+Kubernetes with `MODO=k8s`) and `k8s/fallos.sh` — see "Distributed deployment" and "Cloud deployment".
 
 ## Local setup
 
-- The database is a **shared remote MySQL 9.4 on Railway** (`altaria.proxy.rlwy.net:40105`),
-  used by the whole team. Services run with `ddl-auto=validate` and never create or alter tables.
-- The schema is versioned: run `db/schema.sql` (creates the 4 schemas + all tables — `ms-reportes` has none), then
-  `db/seed.sql` (seeds the 5 suppliers referenced by `ms-catalogo/productos.csv`).
+- The database is a **local MySQL 8.4 in Docker** (container `tienda-mysql`, root
+  `docker-compose.yml`), published on `127.0.0.1:3307` (3306 is left free for a host MySQL).
+  Each developer has their own. (It used to be a shared Railway instance; that one is gone.)
+  Services run with `ddl-auto=validate` and never create or alter tables.
+- `docker compose up -d mysql` reads the two passwords from the git-ignored root `.env`
+  (copy `.env.example`). On first start (empty volume) the container runs, in order,
+  `db/schema.sql` (creates the 4 schemas + all tables — `ms-reportes` has none), `db/seed.sql`
+  (seeds the 5 suppliers referenced by `ms-catalogo/productos.csv`) and `db/usuario-app.sql`
+  (grants the app user `tienda` only SELECT/INSERT/UPDATE/DELETE on the 4 schemas).
+  To rebuild from the scripts: `docker compose down -v && docker compose up -d mysql`.
 - Each module reads `spring.datasource.*` and `app.jwt.secret` from a **git-ignored**
   `src/main/resources/application-local.properties` (copy it from the committed
   `application-local.properties.example`, drop the `.example` suffix, fill in real values).
   `application.properties` pulls it in via `spring.config.import=optional:classpath:application-local.properties`
   — no profile to activate; the service will not start if the file is missing (tests use H2 instead).
-  The datasource URL must use `useSSL=true`; `app.jwt.secret` must be byte-identical across all five modules
-  (`ms-reportes` has no datasource, but it still needs `app.jwt.secret` to verify tokens).
-- Shared-DB caveat: `POST /api/productos/carga` wipes the whole `productos` table — never run it
-  while a teammate is working.
+  Datasource: `jdbc:mysql://localhost:3307/<schema>?useSSL=false&...`, user `tienda`, password =
+  `MYSQL_PASSWORD` from `.env` (`useSSL=false` only because the connection never leaves the
+  machine — a remote DB must go back to `useSSL=true`). `app.jwt.secret` must be byte-identical
+  across all five modules (`ms-reportes` has no datasource, but it still needs `app.jwt.secret`
+  to verify tokens).
+- `POST /api/productos/carga` wipes the whole `productos` table.
+
+### Distributed deployment (Docker) — "Grafico explicativo segundo corte.jpeg"
+- `docker compose up -d --build` runs the course's target architecture, extended with
+  ms-identidad and ms-reportes: **every** service has 2 replicas behind its own NGINX
+  round-robin balancer, plus 2 frontends behind an entry NGINX on port 80 (19 containers).
+  Flow: `navegador -> nginx-front:80 -> front-1|2 -> nginx-<servicio> -> ms-<servicio>-1|2 -> mysql`.
+- Network `tienda-red` 172.28.0.0/24 (.1 = host). Per service a block of 10: `.X0` its NGINX,
+  `.X1`/`.X2` its replicas — identidad .1x, clientes .2x, catalogo .3x, ventas .4x, reportes .5x,
+  front .6x, mysql .100. Host ports and the full table are in `README.md`; all bound to 127.0.0.1.
+- Inside containers every Spring Boot listens on 8080; config comes from env vars set in the
+  compose file from `.env` (`APP_JWT_SECRET`, `SPRING_DATASOURCE_*`, `MS_*_URL`, ...). No secret is
+  baked into an image (`application-local.properties` is in each `.dockerignore`).
+  Service-to-service calls always go through the balancer (`MS_*_URL=http://nginx-...`).
+- The 6 NGINX share one template, `docker/nginx/balanceo.conf.template` (`zone` so the round robin
+  is shared across worker processes; `client_max_body_size 2m` for the CSV upload; response header
+  `X-Atendido-Por` shows which replica answered).
+- `REPLICA_1/2` of each NGINX are the replicas' **fixed IPs**, not container names. Keep it that
+  way: NGINX resolves names only at startup and Docker's DNS does not resolve a stopped
+  container, so with names an NGINX (re)started while one replica was down crash-looped with
+  `host not found in upstream` and the whole service returned 502.
+- `TZ: America/Bogota` is set for all 10 Spring Boot replicas (`x-spring-env`); the image defaults
+  to UTC. `ms-ventas` writes `fecha_venta` with the JVM clock but computes "today / this month"
+  for the dashboard in `America/Bogota`; under UTC a sale after 7 p.m. landed on the next day.
+- Each "FR NodeJS" is `frontend/servidor.mjs` (Node, no dependencies): serves the `ng build
+  --configuration docker` output and proxies `/api/*` to the balancers. Targets come from
+  `DESTINO_IDENTIDAD|CLIENTES|CATALOGO|VENTAS|REPORTES` (default: the `nginx-*` names, so the
+  compose sets nothing; `k8s/` sets the Service names). Every response carries
+  `X-Atendido-Por-Front: <hostname>` (pod name in k8s). It proxies with `agent: false` (a new
+  connection per request) on purpose: a k8s Service balances per *connection*, so keep-alive
+  would pin almost everything to one replica. `environment.docker.ts`
+  has empty URLs so the browser calls `/api/...` same-origin (no CORS). **Do not go back to
+  `ng serve` here**: each dev-server copy hashes its optimized deps differently, so two copies
+  behind a balancer return 504 "Outdated Optimize Dep" and the page stays blank.
+- `ms-identidad-2` waits for `ms-identidad-1` to be healthy (+ `restart: on-failure`): both seed
+  `admininicial` and the system user on startup and would race on an empty DB.
 - `ms-identidad` seeds an initial admin (`admininicial` / `admin123456`) via `DataInitializer`
   on startup. It is **auto-deactivated** the moment the first real user is created.
+- Verification scripts (`bash` + `curl` + `jq`), details in `README.md`:
+  - `docker/pruebas/todo.sh` — mvn tests, build, cold start as compose project `tienda-prueba`
+    (own empty volume, so the normal volume is never touched), `e2e.sh`, `fallos.sh`, cleanup.
+  - `docker/pruebas/e2e.sh` — functional checks through `http://localhost`. **Needs a freshly
+    created DB** (logs in as `admininicial`, and the CSV load wipes `productos`); it aborts if
+    `admininicial` can't log in. Never point it at a DB with real data.
+  - `docker/pruebas/fallos.sh` — read-only failover checks (stops replicas, restarts an NGINX
+    with a replica down); safe on the normal stack.
+- Images build for `linux/amd64` and `linux/arm64`: every Dockerfile's build stage is
+  `FROM --platform=$BUILDPLATFORM ...` (jar/JS are arch-independent, so no emulation) and the
+  final stage only copies. `docker/publicar-imagenes.sh <version>` pushes all six to GHCR
+  (`ghcr.io/bonex-ishmov/tienda-<module>:<version>`, public) and refuses to overwrite a tag.
+
+### Cloud deployment (Kubernetes on Oracle OKE) — full guide in `README.md`
+- Oracle Cloud Free Tier account (tenancy `bonexishmov`, home region `us-sanjose-1`). **Not**
+  Pay As You Go. `infra/oci/` (Terraform, provider `oracle/oci`, auth from `~/.oci/config`)
+  creates the VCN (subnets: `api` public but only `mi_ip`, `nodos` private behind a NAT,
+  `balanceo` public port 80 only), an OKE **BASIC_CLUSTER** (free control plane, flannel), a node
+  pool and a USD 50/month budget alert. `terraform.tfvars` and `*.tfstate` are git-ignored.
+- Nodes: 2 × `VM.Standard.E5.Flex` (x86, 1 OCPU / 8 GB), paid from the trial credit (USD 300,
+  **expires 2026-12-18**) because there was no A1 (ARM, Always Free) capacity. Migrating = set
+  `forma_nodo`/`memoria_nodo` in tfvars + `terraform apply` (images are already multi-arch);
+  `infra/oci/buscar-capacidad-a1.sh` polls for capacity. Node count is owned by
+  `infra/oci/nodos.sh encender|apagar|estado` (Terraform ignores `size`). Turn nodes off when
+  not in use — the user cares about the credit.
+- `k8s/` = the app: namespace `tienda`; one Service (ClusterIP :80→8080) + Deployment ×2 per
+  microservice (these Services **replace the NGINX balancers** — user's decision); `front` ×2
+  behind a `LoadBalancer` Service (OCI flexible 10 Mbps, `security-rule-management-mode: None`
+  because Terraform owns the security lists); MySQL as a StatefulSet with a 50 GB `oci-bv` PVC
+  (`subPath: mysql` because of `lost+found`) and a headless Service. `k8s/desplegar.sh` creates
+  the Secret `tienda-secretos` from `.env` and the ConfigMap `mysql-init` from `db/*.sql`
+  (single copy of the SQL), then applies everything. The 5 microservice manifests share one
+  structure — keep them in sync when changing one.
+- Keep: fully-qualified image names (`docker.io/library/...` — OKE's CRI-O rejects short
+  names); `topologySpreadConstraints` with `DoNotSchedule` + `matchLabelKeys:
+  [pod-template-hash]` + `nodeTaintsPolicy: Honor` (one replica per node, version-aware);
+  `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=60` with a 1 GiB limit. A StatefulSet won't replace
+  a pod that never became ready: delete `mysql-0` by hand after fixing its manifest.
+- `kubectl` only works from the IP in `mi_ip`; a timeout usually means the user's public IP
+  changed (update tfvars + `terraform apply`). Tear down in order: `kubectl delete namespace
+  tienda` (removes the OCI load balancer and the block volume) **then** `terraform destroy`.
+- The cloud DB contains the e2e test user `ana`/`ana12345` (and `admininicial` is deactivated)
+  unless the user already replaced it. Never run `e2e.sh` against a deployment with real data.
 
 ## Architecture
 
@@ -186,6 +281,14 @@ cuando el PDF diga otra cosa, gana lo de aquí:
 - Carga CSV de productos: modo reemplazo total de la tabla, en una transacción.
 - Versiones: se usa Java y Spring Boot actuales. Las versiones del PDF (Java 11,
   Spring Boot 2.4.5) no obligan.
+- Nube: Kubernetes gestionado en **Oracle Cloud (OKE)**, cuenta Free Tier, sin pasar a
+  Pay As You Go; infraestructura con Terraform. AWS sigue excluido (ver "Documento de
+  requisitos"). En Kubernetes los balanceadores NGINX se reemplazan por **Services** (y el
+  NGINX de entrada por un Service `LoadBalancer`); MySQL corre **dentro del clúster**
+  (StatefulSet + disco persistente); imágenes **públicas en GHCR**; secretos en **Secrets de
+  Kubernetes** creados desde `.env`. El balanceo se muestra con la cabecera
+  `X-Atendido-Por-Front` y con `kubectl`; las 2 réplicas de cada servicio van en nodos
+  distintos. El despliegue en Docker con NGINX se conserva tal cual para correr en local.
 
 ## Persistencia entre microservicios
 

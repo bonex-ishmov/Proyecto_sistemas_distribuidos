@@ -26,6 +26,23 @@ npm test          # unit tests (Vitest)
 (`npm run build`) usa `environment.ts` tal cual — hay que completar sus
 `PON_AQUI_LA_URL_DE_...` con las URLs reales antes de desplegar.
 
+## Despliegue (Docker y Kubernetes)
+
+En los dos despliegues de la raíz (`docker-compose.yml` y `k8s/`) el front **no** usa
+`ng serve`: la imagen (`Dockerfile`) compila con `ng build --configuration docker` y
+la sirve `servidor.mjs`, un servidor Node sin dependencias en el puerto 4200.
+
+- `environment.docker.ts` deja las URLs vacías: el navegador llama a `/api/...` en el
+  mismo origen y `servidor.mjs` reenvía cada ruta al microservicio dueño (sin CORS).
+- Destinos por variables de entorno: `DESTINO_IDENTIDAD`, `DESTINO_CLIENTES`,
+  `DESTINO_CATALOGO`, `DESTINO_VENTAS`, `DESTINO_REPORTES` (siempre puerto 80). Sin
+  ellas usa los NGINX del compose (`nginx-clientes`…); `k8s/70-front.yaml` pone los
+  Services (`ms-clientes`…).
+- Cada respuesta lleva `X-Atendido-Por-Front` con el nombre del contenedor o del pod
+  que la sirvió, para ver el balanceo entre las 2 copias del front.
+- Reenvía con una conexión nueva por petición (`agent: false`), para que un Service
+  de Kubernetes reparta cada petición y no cada conexión.
+
 ## Estructura
 
 - `src/styles.css`: hoja de estilos global (Incremento 7) — tokens de color/
