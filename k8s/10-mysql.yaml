@@ -1,0 +1,94 @@
+# =====================================================================
+# k8s/10-mysql.yaml  --  MySQL 8.4 dentro del clúster
+#
+# StatefulSet (no Deployment) porque tiene estado: el pod conserva su nombre
+# (mysql-0) y su disco (PersistentVolumeClaim) aunque se recree o cambie de nodo.
+# El disco es un Block Volume de Oracle de 50 GB (el mínimo), dentro de los
+# 200 GB gratuitos; sobrevive a `nodos.sh apagar`.
+#
+# Igual que en Docker, en el PRIMER arranque (disco vacío) la imagen ejecuta en
+# orden los scripts de /docker-entrypoint-initdb.d: schema.sql, seed.sql y
+# usuario-app.sql (vienen del ConfigMap mysql-init que crea desplegar.sh).
+# =====================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: tienda
+spec:
+  # "Headless" (sin IP virtual): el nombre mysql resuelve directo a la IP del
+  # pod, y solo cuando está listo. Con una sola réplica no hay nada que balancear.
+  clusterIP: None
+  selector:
+    app: mysql
+  ports:
+    - name: mysql
+      port: 3306
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: tienda
+spec:
+  serviceName: mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          # Nombre completo (registro/repositorio): los nodos de OKE usan CRI-O, que
+          # rechaza nombres cortos como "mysql:8.4" por ambiguos (¿de qué registro?).
+          image: docker.io/library/mysql:8.4
+          env:
+            - name: TZ
+              value: America/Bogota
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: tienda-secretos, key: MYSQL_ROOT_PASSWORD }
+            # Usuario de la aplicación; usuario-app.sql le da permisos sobre los 4 esquemas.
+            - name: MYSQL_USER
+              value: tienda
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: tienda-secretos, key: MYSQL_PASSWORD }
+          ports:
+            - containerPort: 3306
+          # Mismo chequeo que en docker-compose.yml: por TCP, para no dar por
+          # listo el MySQL temporal (sin red) que corre mientras se ejecutan los scripts.
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$MYSQL_ROOT_PASSWORD\" --silent"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { memory: 1Gi }
+          volumeMounts:
+            - name: datos
+              mountPath: /var/lib/mysql
+              # Un disco nuevo trae la carpeta lost+found, y MySQL se niega a
+              # inicializarse en un directorio que no esté vacío: se usa una subcarpeta.
+              subPath: mysql
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: init
+          configMap:
+            name: mysql-init
+  volumeClaimTemplates:
+    - metadata:
+        name: datos
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: oci-bv # Block Volume de Oracle (driver CSI de OKE)
+        resources:
+          requests:
+            storage: 50Gi

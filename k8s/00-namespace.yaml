@@ -1,0 +1,19 @@
+# =====================================================================
+# k8s/  --  la Tienda Genérica en Kubernetes (clúster OKE de infra/oci)
+#
+#   navegador -> Service "front" (LoadBalancer de Oracle, IP pública, puerto 80)
+#             -> front ×2 (servidor.mjs) -> Service ms-<x> -> ms-<x> ×2
+#             -> Service "mysql" -> mysql (StatefulSet, 1 réplica, disco persistente)
+#
+# Frente al docker-compose.yml, los 6 NGINX desaparecen: el balanceo entre las 2
+# réplicas lo hace cada Service de Kubernetes (reparte entre los pods que están
+# "listos" según su readinessProbe, y Kubernetes recrea solo un pod que muere).
+#
+# Se despliega con k8s/desplegar.sh (crea además el Secret y el ConfigMap con
+# los scripts de db/, que no viven en estos archivos).
+# Todo va en el namespace "tienda": `kubectl delete namespace tienda` lo borra entero.
+# =====================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tienda

@@ -1,0 +1,13 @@
+# Plantilla. Copiar a  terraform.tfvars  (misma carpeta) y poner los valores.
+# terraform.tfvars está en el .gitignore: no se versiona.
+
+# Menú de perfil de la consola -> Tenancy -> OCID
+tenancy_ocid = "ocid1.tenancy.oc1..PON_AQUI_EL_OCID"
+region       = "us-sanjose-1"
+
+# Tu IP pública (curl -s https://checkip.amazonaws.com). Si cambia, actualizarla
+# aquí y hacer `terraform apply`: kubectl solo entra desde esta IP.
+mi_ip = "PON_AQUI_TU_IP"
+
+correo_alertas  = "PON_AQUI_TU_CORREO"
+presupuesto_usd = 50

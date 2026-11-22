@@ -1,0 +1,84 @@
+# =====================================================================
+# k8s/70-front.yaml  --  "FR NodeJS" (frontend/servidor.mjs) y la entrada pública
+#
+# Service tipo LoadBalancer: Oracle crea un balanceador con IP pública (en la
+# subred "balanceo" de infra/oci) que reparte entre los 2 pods del front.
+# Reemplaza al nginx-front:80 del docker-compose.yml.
+# =====================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: front
+  namespace: tienda
+  annotations:
+    # Balanceador "flexible" de 10 Mbps fijos: el que entra en el Always Free.
+    service.beta.kubernetes.io/oci-load-balancer-shape: "flexible"
+    service.beta.kubernetes.io/oci-load-balancer-shape-flex-min: "10"
+    service.beta.kubernetes.io/oci-load-balancer-shape-flex-max: "10"
+    # Las reglas de firewall de las subredes las maneja Terraform (infra/oci/red.tf);
+    # que Kubernetes no las toque.
+    oci.oraclecloud.com/security-rule-management-mode: "None"
+spec:
+  type: LoadBalancer
+  selector:
+    app: front
+  ports:
+    - name: http
+      port: 80 # http://<IP pública>
+      targetPort: 4200 # servidor.mjs
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: front
+  namespace: tienda
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: front
+  template:
+    metadata:
+      labels:
+        app: front
+    spec:
+      # Una réplica en cada nodo (obligatorio: DoNotSchedule). matchLabelKeys hace
+      # que solo cuenten los pods de la misma versión (si no, durante una
+      # actualización los pods viejos desordenan el reparto); nodeTaintsPolicy
+      # Honor ignora un nodo caído, y entonces las 2 réplicas van al que queda.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
+          matchLabelKeys: [pod-template-hash]
+          labelSelector:
+            matchLabels:
+              app: front
+      containers:
+        - name: front
+          image: ghcr.io/bonex-ishmov/tienda-frontend:1.0.0
+          ports:
+            - containerPort: 4200
+          env:
+            # A dónde reenvía servidor.mjs cada /api/*: el Service de cada
+            # microservicio (sin estas variables usaría los nginx-* del compose).
+            - name: DESTINO_IDENTIDAD
+              value: ms-identidad
+            - name: DESTINO_CLIENTES
+              value: ms-clientes
+            - name: DESTINO_CATALOGO
+              value: ms-catalogo
+            - name: DESTINO_VENTAS
+              value: ms-ventas
+            - name: DESTINO_REPORTES
+              value: ms-reportes
+          readinessProbe:
+            httpGet: { path: /, port: 4200 }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /, port: 4200 }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }

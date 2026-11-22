@@ -1,0 +1,114 @@
+# =====================================================================
+# k8s/50-ms-ventas.yaml  --  ms-ventas
+# Registro de ventas. Llama a ms-clientes y ms-catalogo por sus Service,
+# autenticado con el usuario de sistema.
+#
+# Service + Deployment de 2 réplicas. El Service reemplaza al nginx-ventas
+# del docker-compose.yml.
+# =====================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: ms-ventas
+  namespace: tienda
+spec:
+  # ClusterIP (por defecto): IP virtual estable, visible solo dentro del clúster.
+  selector:
+    app: ms-ventas
+  ports:
+    - name: http
+      port: 80 # http://ms-ventas (sin puerto) llega aquí...
+      targetPort: 8080 # ...y se reparte al 8080 de uno de los pods listos
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-ventas
+  namespace: tienda
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ms-ventas
+  template:
+    metadata:
+      labels:
+        app: ms-ventas
+    spec:
+      # Una réplica en cada nodo (obligatorio: DoNotSchedule). matchLabelKeys hace
+      # que solo cuenten los pods de la misma versión (si no, durante una
+      # actualización los pods viejos desordenan el reparto); nodeTaintsPolicy
+      # Honor ignora un nodo caído, y entonces las 2 réplicas van al que queda.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
+          matchLabelKeys: [pod-template-hash]
+          labelSelector:
+            matchLabels:
+              app: ms-ventas
+      # No arranca la app hasta que MySQL acepte conexiones (el nombre "mysql"
+      # solo resuelve cuando su pod está listo). Reemplaza al depends_on del compose.
+      initContainers:
+        - name: esperar-mysql
+          image: docker.io/library/busybox:1.37 # nombre completo: CRI-O no acepta nombres cortos
+          command: ["sh", "-c", "until nc -z mysql 3306; do echo esperando a mysql; sleep 3; done"]
+      containers:
+        - name: ms-ventas
+          image: ghcr.io/bonex-ishmov/tienda-ms-ventas:1.0.0
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SERVER_PORT
+              value: "8080"
+            # Hora de Colombia: ms-ventas guarda fecha_venta con el reloj del JVM.
+            - name: TZ
+              value: America/Bogota
+            # Heap máximo = 60 % del límite de memoria del contenedor (1 GiB).
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=60"
+            # Mismo secreto HS256 en los 5 servicios (del Secret tienda-secretos).
+            - name: APP_JWT_SECRET
+              valueFrom: { secretKeyRef: { name: tienda-secretos, key: JWT_SECRET } }
+            # useSSL=false: MySQL corre en este mismo clúster y el tráfico no sale
+            # de la red privada de los nodos.
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:mysql://mysql:3306/db_ventas?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+            - name: SPRING_DATASOURCE_USERNAME
+              value: tienda
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom: { secretKeyRef: { name: tienda-secretos, key: MYSQL_PASSWORD } }
+            # Los otros servicios, siempre por su Service (nombre DNS del clúster,
+            # puerto 80), que reparte entre sus 2 réplicas.
+            - name: MS_IDENTIDAD_URL
+              value: http://ms-identidad
+            - name: MS_CLIENTES_URL
+              value: http://ms-clientes
+            - name: MS_CATALOGO_URL
+              value: http://ms-catalogo
+            - name: MS_VENTAS_URL
+              value: http://ms-ventas
+            - name: MS_IDENTIDAD_USUARIO_SISTEMA
+              valueFrom: { secretKeyRef: { name: tienda-secretos, key: USUARIO_SISTEMA } }
+            - name: MS_IDENTIDAD_PASSWORD_SISTEMA
+              valueFrom: { secretKeyRef: { name: tienda-secretos, key: USUARIO_SISTEMA_PASSWORD } }
+          # Chequeos por TCP al 8080, como el healthcheck del compose (la app no
+          # tiene actuator). startup: hasta 5 min para arrancar; readiness: si falla,
+          # el Service deja de mandarle peticiones; liveness: si falla, se reinicia.
+          startupProbe:
+            tcpSocket: { port: 8080 }
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket: { port: 8080 }
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: 8080 }
+            periodSeconds: 10
+            failureThreshold: 3
+          # requests: lo que se reserva en el nodo para ubicar el pod (en Docker
+          # usaban 200-400 MiB); limits: si pasa de 1 GiB, Kubernetes lo reinicia.
+          resources:
+            requests: { cpu: 100m, memory: 450Mi }
+            limits: { memory: 1Gi }
